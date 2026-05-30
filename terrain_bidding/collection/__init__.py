@@ -62,12 +62,12 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 32
+    num_envs = 64
     env_cfg.env.num_envs = num_envs
-    # Minimal terrain to fit in 8GB VRAM
-    env_cfg.terrain.num_rows = 5
-    env_cfg.terrain.num_cols = 5
-    env_cfg.terrain.max_init_terrain_level = 4
+    # Moderate terrain for diversity + VRAM fit
+    env_cfg.terrain.num_rows = 10
+    env_cfg.terrain.num_cols = 10
+    env_cfg.terrain.max_init_terrain_level = 9
     env_cfg.terrain.curriculum = False  # disable curriculum for collection
     print(f"Creating env: {num_envs} envs, 5x5 terrain...")
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
