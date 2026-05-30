@@ -32,10 +32,9 @@ class HonestRobot:
 
     def __init__(self, robot_id: int, ensemble_mu: float = 0.0,
                  ensemble_var_ale: float = 1.0, ensemble_var_epi: float = 0.1,
-                 K: int = 5):
+                 K: int = 5, **kwargs):
         self.robot_id = robot_id
         self.K = K
-        # These get overridden per-task in practice
         self._base_mu = ensemble_mu
         self._base_var_ale = ensemble_var_ale
         self._base_var_epi = ensemble_var_epi
@@ -238,10 +237,17 @@ ADVERSARY_TYPES = {
 def create_fleet(n_honest: int, adversary_type: str = "honest",
                  n_adversary: int = 0, **adversary_kwargs) -> list:
     """Create a mixed fleet of honest robots and adversaries."""
+    import inspect
     fleet = []
     for i in range(n_honest):
         fleet.append(HonestRobot(robot_id=i))
     for i in range(n_adversary):
         cls = ADVERSARY_TYPES[adversary_type]
-        fleet.append(cls(robot_id=n_honest + i, **adversary_kwargs))
+        # Filter kwargs to only those accepted by the class
+        sig = inspect.signature(cls.__init__)
+        valid = {k: v for k, v in adversary_kwargs.items()
+                 if k in sig.parameters or any(
+                     p.kind == inspect.Parameter.VAR_KEYWORD
+                     for p in sig.parameters.values())}
+        fleet.append(cls(robot_id=n_honest + i, **valid))
     return fleet
