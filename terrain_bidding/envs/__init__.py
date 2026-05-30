@@ -96,8 +96,9 @@ if HAS_ISAAC:
             soft_dof_pos_limit = 0.9
             base_height_target = 0.25
             class scales(LeggedRobotCfg.rewards.scales):
-                torques = -0.0002
+                torques = -0.001
                 dof_pos_limits = -10.0
+                feet_air_time = 2.0
 
         class normalization(LeggedRobotCfg.normalization):
             class obs_scales(LeggedRobotCfg.normalization.obs_scales):
