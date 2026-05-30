@@ -57,6 +57,10 @@ def train(save_dir: str = "checkpoints"):
     train_cfg_dict = class_to_dict(train_cfg)
 
     runner = OnPolicyRunner(env, train_cfg_dict, log_dir=save_dir, device="cuda:0")
+    print(f"TensorBoard logs: {save_dir}/")
+    print(f"  View with: tensorboard --logdir {save_dir}")
+    print(f"  Checkpoints saved every {train_cfg.runner.save_interval} iterations")
+
     runner.learn(num_learning_iterations=train_cfg.runner.max_iterations,
                  init_at_random_ep_len=True)
 
