@@ -238,12 +238,13 @@ def calibrate_temperature(ensemble: Ensemble, val_ds: RolloutDataset,
 
     # Grid search for temperature that minimizes ECE
     best_t, best_ece = 1.0, float("inf")
-    for log_t in np.linspace(-1, 1, 50):
+    for log_t in np.linspace(-2, 3, 100):
         t = np.exp(log_t)
         ece = _compute_ece(mu, var * t, cost)
         if ece < best_ece:
             best_ece = ece
             best_t = t
+    print(f"  Calibration: best_T={best_t:.3f}, ECE={best_ece:.4f}")
     return best_t
 
 
