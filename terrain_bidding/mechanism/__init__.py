@@ -283,22 +283,24 @@ def simulate(sim_cfg: SimConfig, robots: list, task_sampler) -> List[RoundResult
 # ─── Lipschitz Estimation ─────────────────────────────────────────────────────
 
 def estimate_lipschitz(sim_cfg: SimConfig, robots: list, task_sampler,
-                       delta: float = 0.1, n_samples: int = 1000) -> float:
+                       delta: float = 0.5, n_samples: int = 1000) -> float:
     """Estimate L: sensitivity of allocation probability to bid shading.
 
+    Uses task scarcity (N/2 tasks for N robots) to create competition.
     Perturbs robot 0's bids by delta, measures change in allocation probability.
     """
     rng = np.random.default_rng(sim_cfg.seed + 999)
     cfg = sim_cfg.mech_cfg
     N = len(robots)
+    M = max(N // 2, 1)  # fewer tasks than robots = competition
     allocated_base, allocated_perturbed = 0, 0
 
     for _ in range(n_samples):
-        tasks = task_sampler(N, rng)
+        tasks = task_sampler(M, rng)
         bids = []
         for i, robot in enumerate(robots):
             robot_bids = []
-            for j in range(N):
+            for j in range(M):
                 robot_bids.append(robot.bid(tasks[j], i, j))
             bids.append(robot_bids)
 

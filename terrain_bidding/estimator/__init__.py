@@ -118,8 +118,8 @@ class Ensemble:
 
     def load(self, path: str):
         for i, net in enumerate(self.networks):
-            net.load_state_dict(torch.load(f"{path}/net_{i}.pt", map_location=self.device))
-        meta = torch.load(f"{path}/meta.pt", map_location=self.device)
+            net.load_state_dict(torch.load(f"{path}/net_{i}.pt", map_location=self.device, weights_only=False))
+        meta = torch.load(f"{path}/meta.pt", map_location=self.device, weights_only=False)
         self.temperature = meta["temperature"]
         self.cost_mean = meta.get("cost_mean", 0.0)
         self.cost_std = meta.get("cost_std", 1.0)
