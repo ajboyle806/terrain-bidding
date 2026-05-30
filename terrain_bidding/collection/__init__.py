@@ -109,8 +109,8 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
         obs = env.get_observations()
         total_steps += 1
 
-        if total_steps % 50 == 0:
-            print(f"  step {total_steps} | collected {collected}/{target_rollouts}")
+        if total_steps % 500 == 0:
+            print(f"  step {total_steps} | collected {collected}/{target_rollouts}", flush=True)
 
         # Record torques for all envs (running sum, no memory growth)
         torques = env.torques.detach().cpu().numpy()  # (num_envs, 12)
