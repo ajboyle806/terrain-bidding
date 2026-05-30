@@ -116,7 +116,9 @@ class RealLearningAdversary(EnsembleRobot):
         expected_deficit = self._last_delta ** 2 / (2 * self._last_var_ale)
         if expected_deficit > 1e-8:
             kappa_observed = observed_penalty / expected_deficit
+            kappa_observed = min(kappa_observed, 50.0)  # clamp to prevent explosion
             self.kappa_est += self.lr * (kappa_observed - self.kappa_est)
+            self.kappa_est = max(0.01, min(self.kappa_est, 50.0))
 
 
 class RealTerrainSelectiveAdversary(EnsembleRobot):

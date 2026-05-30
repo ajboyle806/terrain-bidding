@@ -152,7 +152,7 @@ def run_welfare_experiment(real_sampler, S_baseline):
 
     for n_adv in [0, 1, 2]:
         for mech_name, mech in [("vanilla", VanillaMechanism()),
-                                 ("fixed_thresh", FixedThresholdMechanism(sigma_fixed=600.0)),
+                                 ("fixed_thresh", FixedThresholdMechanism(sigma_fixed=1.0)),
                                  ("total_var", TotalVarianceMechanism()),
                                  ("full", FullMechanism())]:
             mech_cfg = MechanismConfig(N=N, kappa=2.0, gamma=1.0, S_baseline=S_baseline)
@@ -210,9 +210,9 @@ def run_kappa_sweep_real(real_sampler, S_baseline):
     def scarce(n, rng):
         return real_sampler(M, rng)
 
-    L = estimate_lipschitz(sim_cfg, fleet_honest, scarce, delta=200.0, n_samples=1000)
-    # Average aleatoric variance from data
-    avg_var_ale = 233586.0  # from earlier diagnostic
+    L = estimate_lipschitz(sim_cfg, fleet_honest, scarce, delta=0.5, n_samples=1000)
+    # Average aleatoric variance from normalized predictions
+    avg_var_ale = 0.6  # from ensemble predictions in normalized space
     kappa_star = mech_cfg.R * L * avg_var_ale
     print(f"\n  Estimated L = {L:.6f}")
     print(f"  Theoretical κ* = R·L·σ²_ale = {kappa_star:.2f}")
@@ -232,7 +232,7 @@ def run_main_comparison(real_sampler, S_baseline):
     adversaries = ["fixed_offset", "adaptive", "learning",
                    "terrain_selective", "ensemble_manipulating"]
     mechanisms = [("vanilla", VanillaMechanism()),
-                  ("fixed_thresh", FixedThresholdMechanism(sigma_fixed=600.0)),
+                  ("fixed_thresh", FixedThresholdMechanism(sigma_fixed=1.0)),
                   ("total_var", TotalVarianceMechanism()),
                   ("full", FullMechanism())]
 
