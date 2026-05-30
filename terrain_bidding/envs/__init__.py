@@ -118,6 +118,7 @@ if HAS_ISAAC:
     class TerrainBiddingPPOCfg(LeggedRobotCfgPPO):
         """PPO runner config."""
         class policy(LeggedRobotCfgPPO.policy):
+            init_noise_std = 1.0
             actor_hidden_dims = [512, 256, 128]
             critic_hidden_dims = [512, 256, 128]
             activation = 'elu'
@@ -125,7 +126,7 @@ if HAS_ISAAC:
         class algorithm(LeggedRobotCfgPPO.algorithm):
             entropy_coef = 0.01
             clip_param = 0.2
-            learning_rate = 3e-4
+            learning_rate = 1e-3
             schedule = 'adaptive'
             desired_kl = 0.01
             lam = 0.95
