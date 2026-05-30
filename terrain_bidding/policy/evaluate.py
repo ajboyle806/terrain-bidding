@@ -99,10 +99,60 @@ def check_gate(results: list[EvalResult]) -> tuple[bool, list[str]]:
 
 
 def _run_episode(policy, terrain_idx, cost_weights):
-    """Run single episode on specified terrain. Returns outcome dict."""
-    # Placeholder — actual implementation uses Isaac Gym env
-    # with forced terrain type and records torques/velocities
-    raise NotImplementedError("Requires Isaac Gym runtime")
+    """Run single episode on specified terrain. Returns outcome dict.
+
+    Requires Isaac Gym runtime.
+    """
+    if not HAS_ISAAC:
+        raise RuntimeError("Isaac Gym required. Run on GPU machine.")
+
+    from terrain_bidding.collection import _get_env_singleton, _compute_cost
+    import torch
+
+    env = _get_env_singleton()
+    dt = 1.0 / 50.0
+    max_steps = int(15.0 / dt)
+
+    # Reset env to specified terrain type
+    env.reset()
+    start_pos = env.root_states[0, :3].clone()
+
+    torques_list, joint_vels_list = [], []
+    for step in range(max_steps):
+        obs = env.obs_buf[0:1]
+        with torch.no_grad():
+            action = policy.act(obs, deterministic=True)
+            if isinstance(action, tuple):
+                action = action[0]
+
+        env.step(action)
+        torques_list.append(env.torques[0].cpu().numpy().copy())
+        joint_vels_list.append(env.dof_vel[0].cpu().numpy().copy())
+
+        # Check fall
+        base_height = env.root_states[0, 2].item()
+        if base_height < 0.15:
+            return {"success": False, "fall": True, "timeout": False}
+
+        grav = env.projected_gravity[0].cpu().numpy()
+        pitch = abs(np.arctan2(grav[0], grav[2]))
+        roll = abs(np.arctan2(grav[1], grav[2]))
+        if pitch > 1.047 or roll > 1.047:
+            return {"success": False, "fall": True, "timeout": False}
+
+        # Check goal reached (8m default goal distance)
+        pos = env.root_states[0, :3]
+        if torch.norm(pos[:2] - start_pos[:2]).item() >= 7.5:
+            trajectory = {
+                "torques": np.array(torques_list),
+                "joint_vels": np.array(joint_vels_list),
+                "dt": dt,
+                "duration": (step + 1) * dt,
+            }
+            cost = _compute_cost(trajectory, cost_weights)
+            return {"success": True, "fall": False, "timeout": False, "cost": cost}
+
+    return {"success": False, "fall": False, "timeout": True}
 
 
 if __name__ == "__main__":

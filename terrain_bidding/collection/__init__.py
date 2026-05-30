@@ -112,15 +112,107 @@ def _run_rollout(policy, terrain_idx, cfg, device):
 
 
 def _sample_terrain_patch(terrain_idx):
-    """Sample a 16x16 heightmap patch from terrain. Returns (heightmap, slope, roughness, friction)."""
-    # Actual implementation queries Isaac Gym terrain mesh
-    raise NotImplementedError("Requires Isaac Gym runtime")
+    """Sample a 16x16 heightmap patch from terrain. Returns (heightmap, slope, roughness, friction).
+
+    Requires Isaac Gym runtime. Uses the global _ENV singleton.
+    """
+    if not HAS_ISAAC:
+        raise RuntimeError("Isaac Gym required. Run on GPU machine.")
+
+    env = _get_env_singleton()
+    # Pick a random sub-region of the terrain matching terrain_idx
+    terrain = env.terrain
+    row = np.random.randint(0, terrain.heightsamples.shape[0] - 16)
+    col = np.random.randint(0, terrain.heightsamples.shape[1] - 16)
+    patch = terrain.heightsamples[row:row+16, col:col+16].cpu().numpy() * terrain.vertical_scale
+
+    # Compute features from patch
+    gy, gx = np.gradient(patch, terrain.horizontal_scale)
+    slope = np.sqrt(gx**2 + gy**2).mean()
+    roughness = patch.std()
+
+    # Friction from domain randomization range for this terrain
+    friction = np.random.uniform(0.5, 1.25)
+
+    return patch.astype(np.float32), float(slope), float(roughness), float(friction)
 
 
 def _execute_trajectory(policy, terrain_idx, distance, elevation, cfg, device):
-    """Run frozen policy to goal. Returns trajectory dict or None on failure."""
-    # Returns {"torques": (T, 12), "joint_vels": (T, 12), "dt": float, "duration": float}
-    raise NotImplementedError("Requires Isaac Gym runtime")
+    """Run frozen policy to goal. Returns trajectory dict or None on failure.
+
+    Requires Isaac Gym runtime. Runs a single-env episode with the frozen policy.
+    """
+    if not HAS_ISAAC:
+        raise RuntimeError("Isaac Gym required. Run on GPU machine.")
+
+    env = _get_env_singleton()
+    dt = 1.0 / 50.0  # control frequency
+    max_steps = int(cfg.max_episode_time / dt)
+
+    # Set goal for env 0
+    goal_dir = np.random.randn(2)
+    goal_dir = goal_dir / (np.linalg.norm(goal_dir) + 1e-8)
+    env.commands[0, 0] = goal_dir[0] * 1.0  # vx command
+    env.commands[0, 1] = goal_dir[1] * 0.3  # vy command
+    env.commands[0, 2] = 0.0  # yaw rate
+
+    torques_list, joint_vels_list = [], []
+    start_pos = env.root_states[0, :3].clone()
+
+    for step in range(max_steps):
+        obs = env.obs_buf[0:1]
+        with torch.no_grad():
+            action = policy.act(obs, deterministic=True)
+            if isinstance(action, tuple):
+                action = action[0]
+
+        env.step(action)
+
+        # Record telemetry
+        torques_list.append(env.torques[0].cpu().numpy().copy())
+        joint_vels_list.append(env.dof_vel[0].cpu().numpy().copy())
+
+        # Check termination
+        if env.reset_buf[0]:
+            if env.time_out_buf[0]:
+                return None  # timeout
+            return None  # fall
+
+        # Check goal reached
+        pos = env.root_states[0, :3]
+        dist_traveled = torch.norm(pos[:2] - start_pos[:2]).item()
+        if dist_traveled >= distance - cfg.goal_tolerance:
+            duration = (step + 1) * dt
+            return {
+                "torques": np.array(torques_list),
+                "joint_vels": np.array(joint_vels_list),
+                "dt": dt,
+                "duration": duration,
+            }
+
+    return None  # timeout
+
+
+# Singleton env for data collection (avoids recreating per rollout)
+_ENV_SINGLETON = None
+
+
+def _get_env_singleton():
+    """Lazy-init a single Isaac Gym env for data collection."""
+    global _ENV_SINGLETON
+    if _ENV_SINGLETON is None:
+        from terrain_bidding.envs import TerrainBiddingEnv, TerrainBiddingEnvCfg
+        from isaacgym import gymapi
+        sim_params = gymapi.SimParams()
+        sim_params.dt = 1.0 / 200.0
+        sim_params.substeps = 2
+        sim_params.up_axis = gymapi.UP_AXIS_Z
+        sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.81)
+        env_cfg = TerrainBiddingEnvCfg()
+        env_cfg.env.num_envs = 1  # single env for sequential collection
+        _ENV_SINGLETON = TerrainBiddingEnv(
+            env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
+    return _ENV_SINGLETON
 
 
 def _compute_cost(trajectory, weights: CostWeights) -> float:
