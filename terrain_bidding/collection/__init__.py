@@ -62,8 +62,11 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 64
+    num_envs = 16
     env_cfg.env.num_envs = num_envs
+    # Reduce terrain size to fit in VRAM during collection
+    env_cfg.terrain.num_rows = 5
+    env_cfg.terrain.num_cols = 5
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
 
     # Load policy
