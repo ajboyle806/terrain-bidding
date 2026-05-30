@@ -89,6 +89,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     all_elevations = []
     all_costs = []
     all_terrain_types = []
+    all_terrain_levels = []
 
     # Track per-env episode data (running sums, not lists)
     episode_energy = torch.zeros(num_envs, device="cuda:0")
@@ -152,6 +153,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
                 # With 20 cols and proportions [0.2]*5: cols 0-3=type0, 4-7=type1, etc.
                 col = int(env.terrain_types[idx].item())
                 terrain_type = min(col // 4, 4)
+                terrain_level = int(env.terrain_levels[idx].item())
 
                 all_heightmaps.append(hm)
                 all_slopes.append(slope)
@@ -161,6 +163,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
                 all_elevations.append(elevation)
                 all_costs.append(cost)
                 all_terrain_types.append(terrain_type)
+                all_terrain_levels.append(terrain_level)
                 collected += 1
 
                 if collected % 1000 == 0:
@@ -176,20 +179,43 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     # Save
     _save_dataset(all_heightmaps, all_slopes, all_roughness, all_friction,
                   all_distances, all_elevations, all_costs, all_terrain_types,
-                  cfg, save_dir)
+                  all_terrain_levels, cfg, save_dir)
 
 
 def _get_heightmap_patch(env, env_idx, position):
     """Extract 16x16 heightmap patch around position."""
     try:
-        hs = env.terrain.heightsamples
-        px = int((position[0].item()) / env.terrain.cfg.horizontal_scale)
-        py = int((position[1].item()) / env.terrain.cfg.horizontal_scale)
-        px = max(8, min(px, hs.shape[0] - 8))
-        py = max(8, min(py, hs.shape[1] - 8))
+        hs = env.height_samples  # legged_gym stores this as (rows, cols) tensor
+        h_scale = env.terrain.cfg.horizontal_scale
+        v_scale = env.terrain.cfg.vertical_scale
+        border = env.terrain.cfg.border_size
+
+        # World position to heightmap index (account for border)
+        px = int((position[0].item() + border) / h_scale)
+        py = int((position[1].item() + border) / h_scale)
+        px = max(8, min(px, hs.shape[0] - 9))
+        py = max(8, min(py, hs.shape[1] - 9))
         patch = hs[px-8:px+8, py-8:py+8].cpu().numpy().astype(np.float32)
         if patch.shape == (16, 16):
-            return patch * env.terrain.cfg.vertical_scale
+            return patch * v_scale
+    except Exception:
+        pass
+    # Fallback: try env.terrain.heightsamples directly
+    try:
+        hs = env.terrain.heightsamples
+        h_scale = env.terrain.cfg.horizontal_scale
+        v_scale = env.terrain.cfg.vertical_scale
+        border = getattr(env.terrain.cfg, 'border_size', 0)
+        px = int((position[0].item() + border) / h_scale)
+        py = int((position[1].item() + border) / h_scale)
+        px = max(8, min(px, hs.shape[0] - 9))
+        py = max(8, min(py, hs.shape[1] - 9))
+        patch = hs[px-8:px+8, py-8:py+8]
+        if hasattr(patch, 'cpu'):
+            patch = patch.cpu().numpy()
+        patch = patch.astype(np.float32)
+        if patch.shape == (16, 16):
+            return patch * v_scale
     except Exception:
         pass
     return np.random.randn(16, 16).astype(np.float32) * 0.01
@@ -202,7 +228,7 @@ def _compute_slope(heightmap):
 
 
 def _save_dataset(heightmaps, slopes, roughness, friction, distances,
-                  elevations, costs, terrain_types, cfg, save_dir):
+                  elevations, costs, terrain_types, terrain_levels, cfg, save_dir):
     """Split and save as HDF5."""
     n = len(costs)
     print(f"Saving {n} samples...")
@@ -227,6 +253,7 @@ def _save_dataset(heightmaps, slopes, roughness, friction, distances,
             f.create_dataset("elevation_change", data=np.array([elevations[i] for i in idx]))
             f.create_dataset("cost", data=np.array([costs[i] for i in idx]))
             f.create_dataset("terrain_type", data=np.array([terrain_types[i] for i in idx]))
+            f.create_dataset("terrain_level", data=np.array([terrain_levels[i] for i in idx]))
         print(f"  {name}: {len(idx)} samples -> {path}")
 
 

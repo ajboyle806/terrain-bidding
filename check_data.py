@@ -7,6 +7,7 @@ terrain = f["terrain_type"][:]
 slopes = f["slope"][:]
 roughness = f["roughness"][:]
 distances = f["distance"][:]
+terrain_levels = f["terrain_level"][:] if "terrain_level" in f else None
 f.close()
 
 print(f"Cost: mean={costs.mean():.3f}, std={costs.std():.3f}, min={costs.min():.3f}, max={costs.max():.3f}")
@@ -47,3 +48,10 @@ from numpy import corrcoef
 print(f"  slope vs cost: r={corrcoef(slopes, costs)[0,1]:.4f}")
 print(f"  roughness vs cost: r={corrcoef(roughness, costs)[0,1]:.4f}")
 print(f"  distance vs cost: r={corrcoef(distances, costs)[0,1]:.4f}")
+
+if terrain_levels is not None:
+    print("\nBy terrain level (difficulty):")
+    for lev in sorted(np.unique(terrain_levels)):
+        c = costs[terrain_levels == lev]
+        if len(c) > 10:
+            print(f"  Level {int(lev):2d}: n={len(c):5d}, mean={c.mean():.1f}, std={c.std():.1f}")
