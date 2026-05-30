@@ -14,7 +14,7 @@ try:
     from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
     from legged_gym.utils.terrain import Terrain
     HAS_ISAAC = True
-except ImportError:
+except (ImportError, AttributeError):
     HAS_ISAAC = False
 
 from terrain_bidding.configs import PolicyConfig, TerrainConfig
