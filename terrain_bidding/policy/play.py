@@ -43,7 +43,7 @@ def play(checkpoint_path: str = None):
     sim_params.substeps = 1
     sim_params.up_axis = gymapi.UP_AXIS_Z
     sim_params.gravity = gymapi.Vec3(0.0, 0.0, -9.81)
-    sim_params.use_gpu_pipeline = True
+    sim_params.use_gpu_pipeline = False
     sim_params.physx.use_gpu = True
     sim_params.physx.num_threads = 10
     sim_params.physx.solver_type = 1
@@ -58,7 +58,7 @@ def play(checkpoint_path: str = None):
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    env_cfg.env.num_envs = 1
+    env_cfg.env.num_envs = 16
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=False)
 
     # Load policy
