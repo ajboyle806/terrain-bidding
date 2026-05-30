@@ -145,7 +145,18 @@ def make_task_sampler(terrain_type: str = "mixed", base_mu: float = 5.0,
 
 def run_experiment_grid(exp_cfg: ExperimentConfig = ExperimentConfig()):
     """Run the full experimental grid."""
+    import os
     results_all = {}
+
+    # Use real data sampler if available, else synthetic
+    if os.path.exists("data/test.hdf5") and os.path.exists("checkpoints/ensemble/meta.pt"):
+        from terrain_bidding.experiments.real_sampler import make_real_task_sampler, EnsembleRobot
+        print("Using REAL data sampler (ensemble + test data)")
+        real_sampler = make_real_task_sampler()
+        use_real = True
+    else:
+        print("Using SYNTHETIC data sampler (no ensemble/data found)")
+        use_real = False
 
     mechanisms = {
         "vanilla": VanillaMechanism(),
@@ -155,7 +166,7 @@ def run_experiment_grid(exp_cfg: ExperimentConfig = ExperimentConfig()):
     }
     adversary_types = ["fixed_offset", "adaptive", "learning",
                        "terrain_selective", "ensemble_manipulating"]
-    terrain_types = ["mixed", "adversarial", "held_out"]
+    terrain_types = ["mixed"] if use_real else ["mixed", "adversarial", "held_out"]
 
     # Main grid: N=4
     N = 4
@@ -169,13 +180,27 @@ def run_experiment_grid(exp_cfg: ExperimentConfig = ExperimentConfig()):
                     print(f"Running: {condition}")
 
                     mech_cfg = MechanismConfig(N=N, kappa=2.0, gamma=1.0)
-                    fleet = create_fleet(
-                        n_honest=N - n_strategic,
-                        adversary_type=adv_type if n_strategic > 0 else "honest",
-                        n_adversary=n_strategic,
-                        kappa=mech_cfg.kappa, R=mech_cfg.R,
-                    )
-                    sampler = make_task_sampler(terrain)
+                    if use_real:
+                        from terrain_bidding.experiments.real_sampler import EnsembleRobot
+                        from terrain_bidding.adversaries import ADVERSARY_TYPES
+                        # Create fleet with EnsembleRobot as base
+                        fleet = []
+                        for i in range(N - n_strategic):
+                            fleet.append(EnsembleRobot(robot_id=i))
+                        for i in range(n_strategic):
+                            cls = ADVERSARY_TYPES[adv_type]
+                            fleet.append(cls(robot_id=N - n_strategic + i,
+                                           kappa=mech_cfg.kappa, R=mech_cfg.R))
+                        sampler = real_sampler
+                    else:
+                        fleet = create_fleet(
+                            n_honest=N - n_strategic,
+                            adversary_type=adv_type if n_strategic > 0 else "honest",
+                            n_adversary=n_strategic,
+                            kappa=mech_cfg.kappa, R=mech_cfg.R,
+                        )
+                        sampler = make_task_sampler(terrain)
+
                     sim_cfg = SimConfig(
                         mechanism=mechanism, mech_cfg=mech_cfg,
                         num_rounds=exp_cfg.episodes_per_condition,
