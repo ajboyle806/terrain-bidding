@@ -103,8 +103,9 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     obs = env.get_observations()
     print(f"Target: {target_rollouts} rollouts. Starting collection loop...")
     while collected < target_rollouts and total_steps < max_steps:
-        # Step policy
-        actions = policy(obs)
+        # Step policy (no grad to prevent memory buildup)
+        with torch.no_grad():
+            actions = policy(obs)
         env.step(actions)
         obs = env.get_observations()
         total_steps += 1
@@ -113,8 +114,9 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
             print(f"  step {total_steps} | collected {collected}/{target_rollouts}", flush=True)
 
         # Record torques for all envs (running sum on GPU, no cpu transfer)
-        power = (env.torques.detach() * env.dof_vel.detach()).abs().sum(dim=1)
-        episode_energy += power
+        with torch.no_grad():
+            power = (env.torques * env.dof_vel).abs().sum(dim=1)
+            episode_energy += power
         episode_steps += 1
 
         # Periodic CUDA cache clear
