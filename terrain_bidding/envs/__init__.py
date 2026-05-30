@@ -60,8 +60,8 @@ if HAS_ISAAC:
         class init_state(LeggedRobotCfg.init_state):
             pos = [0.0, 0.0, 0.42]
             default_joint_angles = {
-                "FL_hip_joint": 0.0, "FR_hip_joint": 0.0,
-                "RL_hip_joint": 0.0, "RR_hip_joint": 0.0,
+                "FL_hip_joint": 0.1, "FR_hip_joint": -0.1,
+                "RL_hip_joint": 0.1, "RR_hip_joint": -0.1,
                 "FL_thigh_joint": 0.8, "FR_thigh_joint": 0.8,
                 "RL_thigh_joint": 1.0, "RR_thigh_joint": 1.0,
                 "FL_calf_joint": -1.5, "FR_calf_joint": -1.5,
@@ -72,7 +72,7 @@ if HAS_ISAAC:
             control_type = 'P'
             stiffness = {"joint": 20.0}
             damping = {"joint": 0.5}
-            action_scale = 0.5
+            action_scale = 0.25
             decimation = 4
 
         class asset(LeggedRobotCfg.asset):
@@ -94,7 +94,7 @@ if HAS_ISAAC:
 
         class rewards(LeggedRobotCfg.rewards):
             soft_dof_pos_limit = 0.9
-            base_height_target = 0.28
+            base_height_target = 0.25
             class scales(LeggedRobotCfg.rewards.scales):
                 tracking_lin_vel = 1.0
                 tracking_ang_vel = 0.5
@@ -104,6 +104,7 @@ if HAS_ISAAC:
                 base_height = -0.0
                 termination = -10.0
                 feet_air_time = 1.0
+                dof_pos_limits = -10.0
 
         class normalization(LeggedRobotCfg.normalization):
             class obs_scales(LeggedRobotCfg.normalization.obs_scales):
