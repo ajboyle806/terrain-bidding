@@ -62,7 +62,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 4
+    num_envs = 32
     env_cfg.env.num_envs = num_envs
     # Minimal terrain to fit in 8GB VRAM
     env_cfg.terrain.num_rows = 5
