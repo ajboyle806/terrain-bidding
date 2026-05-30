@@ -44,7 +44,7 @@ def train(save_dir: str = "checkpoints"):
     sim_params.physx.max_depenetration_velocity = 1.0
     sim_params.physx.max_gpu_contact_pairs = 2**23
     sim_params.physx.default_buffer_size_multiplier = 5
-    sim_params.physx.contact_collection = 2
+    sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     # Create environment
     env_cfg = TerrainBiddingEnvCfg()
