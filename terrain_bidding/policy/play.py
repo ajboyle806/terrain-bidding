@@ -7,8 +7,9 @@ try:
     from isaacgym import gymapi
     from legged_gym.utils.helpers import class_to_dict
     from rsl_rl.runners import OnPolicyRunner
-except ImportError:
-    print("Isaac Gym required.")
+except ImportError as e:
+    print(f"Import failed: {e}")
+    print("Need: isaacgym, legged_gym, rsl_rl")
     sys.exit(1)
 
 from terrain_bidding.envs import TerrainBiddingEnv, TerrainBiddingEnvCfg, TerrainBiddingPPOCfg
