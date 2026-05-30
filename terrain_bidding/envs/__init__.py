@@ -96,14 +96,7 @@ if HAS_ISAAC:
             soft_dof_pos_limit = 0.9
             base_height_target = 0.25
             class scales(LeggedRobotCfg.rewards.scales):
-                tracking_lin_vel = 1.0
-                tracking_ang_vel = 0.5
                 torques = -0.0002
-                dof_vel = -0.0001
-                orientation = -0.2
-                base_height = -0.0
-                termination = -10.0
-                feet_air_time = 1.0
                 dof_pos_limits = -10.0
 
         class normalization(LeggedRobotCfg.normalization):
@@ -128,9 +121,11 @@ if HAS_ISAAC:
             entropy_coef = 0.01
             clip_param = 0.2
             learning_rate = 1e-3
-            schedule = 'fixed'
+            schedule = 'adaptive'
             desired_kl = 0.01
             lam = 0.95
+            num_learning_epochs = 5
+            num_mini_batches = 4
 
         class runner(LeggedRobotCfgPPO.runner):
             policy_class_name = 'ActorCritic'
