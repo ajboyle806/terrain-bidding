@@ -2,21 +2,15 @@
 import sys
 import os
 
-try:
+
+def play(checkpoint_path: str = None):
+    """Run trained policy with visualization."""
     import isaacgym  # noqa: F401
     from isaacgym import gymapi
     from legged_gym.utils.helpers import class_to_dict
     from rsl_rl.runners import OnPolicyRunner
-except ImportError as e:
-    print(f"Import failed: {e}")
-    print("Need: isaacgym, legged_gym, rsl_rl")
-    sys.exit(1)
+    from terrain_bidding.envs import TerrainBiddingEnv, TerrainBiddingEnvCfg, TerrainBiddingPPOCfg
 
-from terrain_bidding.envs import TerrainBiddingEnv, TerrainBiddingEnvCfg, TerrainBiddingPPOCfg
-
-
-def play(checkpoint_path: str = None):
-    """Run trained policy with visualization."""
     # Find latest checkpoint if not specified
     if checkpoint_path is None:
         import glob
