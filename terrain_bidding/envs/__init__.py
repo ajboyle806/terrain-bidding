@@ -50,7 +50,8 @@ if HAS_ISAAC:
 
         class commands(LeggedRobotCfg.commands):
             num_commands = 4
-            heading_command = True
+            heading_command = False  # we control heading directly
+            resampling_time = 1000.0  # effectively never resample
             class ranges:
                 lin_vel_x = [-1.0, 1.5]
                 lin_vel_y = [-0.5, 0.5]
