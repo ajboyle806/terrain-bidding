@@ -90,9 +90,9 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     all_costs = []
     all_terrain_types = []
 
-    # Track per-env episode data
-    episode_torques = [[] for _ in range(num_envs)]
-    episode_steps = [0] * num_envs
+    # Track per-env episode data (running sums, not lists)
+    episode_energy = np.zeros(num_envs)  # accumulated energy
+    episode_steps = np.zeros(num_envs, dtype=int)
     start_positions = env.root_states[:, :3].clone()
 
     target_rollouts = cfg.num_rollouts
@@ -112,11 +112,11 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
         if total_steps % 50 == 0:
             print(f"  step {total_steps} | collected {collected}/{target_rollouts}")
 
-        # Record torques for all envs
+        # Record torques for all envs (running sum, no memory growth)
         torques = env.torques.detach().cpu().numpy()  # (num_envs, 12)
         dof_vel = env.dof_vel.detach().cpu().numpy()  # (num_envs, 12)
         for i in range(num_envs):
-            episode_torques[i].append(np.abs(torques[i] * dof_vel[i]).sum())
+            episode_energy[i] += np.abs(torques[i] * dof_vel[i]).sum()
             episode_steps[i] += 1
 
         # Check for episode resets
@@ -127,7 +127,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
             if episode_steps[idx] > 50:  # at least 1 second
                 dt = 0.005 * 4  # sim_dt * decimation = control dt
                 duration = episode_steps[idx] * dt
-                energy = sum(episode_torques[idx]) * dt
+                energy = episode_energy[idx] * dt
 
                 cost = cfg.cost_weights.alpha * energy + cfg.cost_weights.beta * duration
 
@@ -161,7 +161,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
                     print(f"  Collected {collected}/{target_rollouts}")
 
             # Reset tracking for this env
-            episode_torques[idx] = []
+            episode_energy[idx] = 0.0
             episode_steps[idx] = 0
             start_positions[idx] = env.root_states[idx, :3].clone()
 
