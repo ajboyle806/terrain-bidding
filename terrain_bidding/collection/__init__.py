@@ -96,8 +96,8 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     episode_steps = np.zeros(num_envs, dtype=int)
     start_positions = env.root_states[:, :3].clone()
 
-    # Goal-directed: set a goal 8m ahead for each robot
-    goal_distance = 8.0  # meters
+    # Goal-directed: set a goal 15m ahead for each robot
+    goal_distance = 15.0  # meters
     goal_tolerance = 0.5
     goal_directions = torch.randn(num_envs, 2, device="cuda:0")
     goal_directions = goal_directions / goal_directions.norm(dim=1, keepdim=True)
@@ -118,9 +118,9 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
             to_goal = goal_positions - pos_2d
             dist_to_goal = to_goal.norm(dim=1, keepdim=True).clamp(min=0.1)
             direction = to_goal / dist_to_goal
-            # Set forward velocity command (1.0 m/s toward goal)
-            env.commands[:, 0] = direction[:, 0] * 1.0  # vx
-            env.commands[:, 1] = direction[:, 1] * 0.3  # vy
+            # Set forward velocity command (1.5 m/s toward goal)
+            env.commands[:, 0] = direction[:, 0] * 1.5  # vx
+            env.commands[:, 1] = direction[:, 1] * 0.5  # vy
             env.commands[:, 2] = 0.0  # no yaw rate
 
         # Step policy (no grad to prevent memory buildup)
