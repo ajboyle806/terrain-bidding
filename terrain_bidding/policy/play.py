@@ -12,12 +12,14 @@ def play(checkpoint_path: str = None):
 
     def class_to_dict(obj):
         """Convert nested config class to dict (avoids legged_gym circular import)."""
+        if not isinstance(obj, type):
+            obj = obj.__class__
         result = {}
         for key in dir(obj):
             if key.startswith("_"):
                 continue
             val = getattr(obj, key)
-            if callable(val):
+            if callable(val) and not isinstance(val, type):
                 continue
             if isinstance(val, type):
                 result[key] = class_to_dict(val)
