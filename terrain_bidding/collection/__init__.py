@@ -29,6 +29,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     from terrain_bidding.policy.train import class_to_dict
 
     os.makedirs(save_dir, exist_ok=True)
+    torch.cuda.empty_cache()
 
     # Find checkpoint
     if not os.path.exists(policy_path):
@@ -61,7 +62,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 256
+    num_envs = 64
     env_cfg.env.num_envs = num_envs
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
 
