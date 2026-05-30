@@ -102,8 +102,8 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
         total_steps += 1
 
         # Record torques for all envs
-        torques = env.torques.cpu().numpy()  # (num_envs, 12)
-        dof_vel = env.dof_vel.cpu().numpy()  # (num_envs, 12)
+        torques = env.torques.detach().cpu().numpy()  # (num_envs, 12)
+        dof_vel = env.dof_vel.detach().cpu().numpy()  # (num_envs, 12)
         for i in range(num_envs):
             episode_torques[i].append(np.abs(torques[i] * dof_vel[i]).sum())
             episode_steps[i] += 1
