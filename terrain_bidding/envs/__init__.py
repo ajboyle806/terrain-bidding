@@ -33,7 +33,7 @@ class TerrainBiddingEnvCfg:
     """Configuration matching legged_gym's expected format."""
 
     class env:
-        num_envs = 4096
+        num_envs = 1024
         num_observations = 95
         num_actions = 12
         episode_length_s = 15.0

@@ -27,7 +27,7 @@ class TerrainConfig:
 
 @dataclass
 class PolicyConfig:
-    num_envs: int = 4096
+    num_envs: int = 1024
     obs_dim: int = 95
     act_dim: int = 12
     hidden_dims: List[int] = field(default_factory=lambda: [512, 256, 128])
@@ -40,9 +40,9 @@ class PolicyConfig:
     clip_ratio: float = 0.2
     entropy_coef: float = 0.01
     gae_lambda: float = 0.95
-    minibatch_size: int = 4096
+    minibatch_size: int = 2048
     epochs_per_batch: int = 4
-    max_steps: int = 1_000_000_000
+    max_steps: int = 500_000_000
     # Domain randomization
     friction_range: tuple = (0.5, 1.25)
     restitution_range: tuple = (0.0, 0.4)
@@ -53,8 +53,8 @@ class PolicyConfig:
 
 @dataclass
 class CollectionConfig:
-    num_rollouts: int = 50_000
-    held_out_rollouts: int = 2_000
+    num_rollouts: int = 30_000
+    held_out_rollouts: int = 1_500
     distance_range: tuple = (3.0, 15.0)
     elevation_range: tuple = (-2.0, 2.0)
     max_episode_time: float = 15.0
