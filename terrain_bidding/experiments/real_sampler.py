@@ -35,6 +35,133 @@ class EnsembleRobot(HonestRobot):
         return super()._get_ensemble_predictions(task)
 
 
+class RealFixedOffsetAdversary(EnsembleRobot):
+    """Fixed offset adversary using real ensemble predictions."""
+    def __init__(self, robot_id: int, factor: float = 0.7, **kwargs):
+        super().__init__(robot_id, **kwargs)
+        self.factor = factor
+
+    def bid(self, task, robot_idx: int, task_idx: int):
+        mus, log_vars = self._get_ensemble_predictions(task)
+        mus = mus * self.factor
+        return Bid(robot_id=robot_idx, task_id=task_idx, mus=mus, log_vars=log_vars)
+
+
+class RealAdaptiveAdversary(EnsembleRobot):
+    """Adaptive adversary using real ensemble predictions."""
+    def __init__(self, robot_id: int, kappa: float = 2.0, R: float = 10.0,
+                 competitor_std: float = 200.0, **kwargs):
+        super().__init__(robot_id, **kwargs)
+        self.kappa = kappa
+        self.R = R
+        self.competitor_std = competitor_std
+
+    def bid(self, task, robot_idx: int, task_idx: int):
+        mus, log_vars = self._get_ensemble_predictions(task)
+        mu_hat = mus.mean()
+        var_ale = np.exp(log_vars).mean()
+        delta = self._optimize_delta(mu_hat, var_ale)
+        mus = mus - delta
+        return Bid(robot_id=robot_idx, task_id=task_idx, mus=mus, log_vars=log_vars)
+
+    def _optimize_delta(self, mu_hat, var_ale):
+        from scipy.stats import norm
+        best_delta, best_u = 0.0, -np.inf
+        for delta in np.linspace(0, mu_hat * 0.3, 50):
+            p_alloc = norm.cdf(delta / self.competitor_std)
+            expected_penalty = self.kappa * delta ** 2 / (2 * var_ale)
+            utility = self.R * p_alloc - expected_penalty
+            if utility > best_u:
+                best_u = utility
+                best_delta = delta
+        return best_delta
+
+
+class RealLearningAdversary(EnsembleRobot):
+    """Learning adversary using real ensemble predictions."""
+    def __init__(self, robot_id: int, kappa_init: float = 0.5,
+                 learning_rate: float = 0.1, R: float = 10.0,
+                 competitor_std: float = 200.0, **kwargs):
+        super().__init__(robot_id, **kwargs)
+        self.kappa_est = kappa_init
+        self.lr = learning_rate
+        self.R = R
+        self.competitor_std = competitor_std
+        self._last_delta = 0.0
+        self._last_var_ale = 1.0
+
+    def bid(self, task, robot_idx: int, task_idx: int):
+        mus, log_vars = self._get_ensemble_predictions(task)
+        mu_hat = mus.mean()
+        var_ale = np.exp(log_vars).mean()
+        self._last_var_ale = var_ale
+        from scipy.stats import norm
+        best_delta, best_u = 0.0, -np.inf
+        for delta in np.linspace(0, mu_hat * 0.3, 50):
+            p_alloc = norm.cdf(delta / self.competitor_std)
+            expected_penalty = self.kappa_est * delta ** 2 / (2 * var_ale)
+            utility = self.R * p_alloc - expected_penalty
+            if utility > best_u:
+                best_u = utility
+                best_delta = delta
+        self._last_delta = best_delta
+        mus = mus - best_delta
+        return Bid(robot_id=robot_idx, task_id=task_idx, mus=mus, log_vars=log_vars)
+
+    def observe(self, result, robot_idx: int):
+        from terrain_bidding.mechanism import RoundResult
+        if result.assignments[robot_idx] < 0 or self._last_delta < 1e-6:
+            return
+        observed_penalty = result.penalties[robot_idx]
+        expected_deficit = self._last_delta ** 2 / (2 * self._last_var_ale)
+        if expected_deficit > 1e-8:
+            kappa_observed = observed_penalty / expected_deficit
+            self.kappa_est += self.lr * (kappa_observed - self.kappa_est)
+
+
+class RealTerrainSelectiveAdversary(EnsembleRobot):
+    """Terrain-selective adversary using real ensemble predictions."""
+    def __init__(self, robot_id: int, epi_threshold: float = 0.5,
+                 shade_fraction: float = 0.2, **kwargs):
+        super().__init__(robot_id, **kwargs)
+        self.epi_threshold = epi_threshold
+        self.shade_fraction = shade_fraction
+
+    def bid(self, task, robot_idx: int, task_idx: int):
+        mus, log_vars = self._get_ensemble_predictions(task)
+        mu_hat = mus.mean()
+        var_epi = ((mus - mu_hat) ** 2).mean()
+        if var_epi > self.epi_threshold:
+            mus = mus - self.shade_fraction * mu_hat
+        return Bid(robot_id=robot_idx, task_id=task_idx, mus=mus, log_vars=log_vars)
+
+
+class RealEnsembleManipulatingAdversary(EnsembleRobot):
+    """Ensemble-manipulating adversary using real predictions."""
+    def __init__(self, robot_id: int, agreement_factor: float = 0.1,
+                 shade_on_target: float = 0.3, **kwargs):
+        super().__init__(robot_id, **kwargs)
+        self.agreement_factor = agreement_factor
+        self.shade_on_target = shade_on_target
+
+    def bid(self, task, robot_idx: int, task_idx: int):
+        mus, log_vars = self._get_ensemble_predictions(task)
+        mu_hat = mus.mean()
+        # Artificial agreement + shade
+        mus = mu_hat + (mus - mu_hat) * self.agreement_factor
+        mus = mus - self.shade_on_target * mu_hat
+        return Bid(robot_id=robot_idx, task_id=task_idx, mus=mus, log_vars=log_vars)
+
+
+REAL_ADVERSARY_TYPES = {
+    "fixed_offset": RealFixedOffsetAdversary,
+    "adaptive": RealAdaptiveAdversary,
+    "learning": RealLearningAdversary,
+    "terrain_selective": RealTerrainSelectiveAdversary,
+    "ensemble_manipulating": RealEnsembleManipulatingAdversary,
+}
+
+
 def make_real_task_sampler(data_path: str = "data/test.hdf5",
                            ensemble_path: str = "checkpoints/ensemble",
                            device: str = "cpu"):

@@ -238,14 +238,15 @@ def simulate(sim_cfg: SimConfig, robots: list, task_sampler) -> List[RoundResult
     N = len(robots)
 
     for round_idx in range(sim_cfg.num_rounds):
-        # Sample tasks (one per robot for simplicity)
+        # Sample tasks
         tasks = task_sampler(N, rng)
+        M = len(tasks)
 
         # Each robot bids on each task
         bids = []
         for i, robot in enumerate(robots):
             robot_bids = []
-            for j in range(N):
+            for j in range(M):
                 bid = robot.bid(tasks[j], i, j)
                 robot_bids.append(bid)
             bids.append(robot_bids)

@@ -150,13 +150,32 @@ def run_experiment_grid(exp_cfg: ExperimentConfig = ExperimentConfig()):
 
     # Use real data sampler if available, else synthetic
     if os.path.exists("data/test.hdf5") and os.path.exists("checkpoints/ensemble/meta.pt"):
-        from terrain_bidding.experiments.real_sampler import make_real_task_sampler, EnsembleRobot
+        from terrain_bidding.experiments.real_sampler import (
+            make_real_task_sampler, EnsembleRobot, REAL_ADVERSARY_TYPES
+        )
         print("Using REAL data sampler (ensemble + test data)")
         real_sampler = make_real_task_sampler()
         use_real = True
+
+        # Compute S_baseline from honest predictions on validation data
+        print("Computing S_baseline from validation data...")
+        from terrain_bidding.mechanism import gaussian_score
+        baseline_scores = []
+        rng = np.random.default_rng(0)
+        for _ in range(2000):
+            tasks = real_sampler(1, rng)
+            t = tasks[0]
+            mu_hat = t.ensemble_mus.mean()
+            var_ale = np.exp(t.ensemble_log_vars).mean()
+            # Score honest prediction against realized cost
+            s = gaussian_score(t.true_mu, mu_hat, var_ale)
+            baseline_scores.append(s)
+        S_baseline = float(np.mean(baseline_scores))
+        print(f"  S_baseline = {S_baseline:.4f}")
     else:
         print("Using SYNTHETIC data sampler (no ensemble/data found)")
         use_real = False
+        S_baseline = -2.0
 
     mechanisms = {
         "vanilla": VanillaMechanism(),
@@ -168,8 +187,9 @@ def run_experiment_grid(exp_cfg: ExperimentConfig = ExperimentConfig()):
                        "terrain_selective", "ensemble_manipulating"]
     terrain_types = ["mixed"] if use_real else ["mixed", "adversarial", "held_out"]
 
-    # Main grid: N=4
+    # Main grid: N=4 robots, M=2 tasks (scarcity creates competition)
     N = 4
+    M = 2  # fewer tasks than robots
     for mech_name, mechanism in mechanisms.items():
         for n_strategic in exp_cfg.strategic_counts_n4:
             for adv_type in adversary_types:
@@ -179,19 +199,21 @@ def run_experiment_grid(exp_cfg: ExperimentConfig = ExperimentConfig()):
                     condition = f"{mech_name}|{adv_type}|n_adv={n_strategic}|{terrain}"
                     print(f"Running: {condition}")
 
-                    mech_cfg = MechanismConfig(N=N, kappa=2.0, gamma=1.0)
+                    mech_cfg = MechanismConfig(N=N, kappa=2.0, gamma=1.0,
+                                              S_baseline=S_baseline)
                     if use_real:
-                        from terrain_bidding.experiments.real_sampler import EnsembleRobot
-                        from terrain_bidding.adversaries import ADVERSARY_TYPES
-                        # Create fleet with EnsembleRobot as base
+                        # Create fleet with real adversaries
                         fleet = []
                         for i in range(N - n_strategic):
                             fleet.append(EnsembleRobot(robot_id=i))
                         for i in range(n_strategic):
-                            cls = ADVERSARY_TYPES[adv_type]
+                            cls = REAL_ADVERSARY_TYPES[adv_type]
                             fleet.append(cls(robot_id=N - n_strategic + i,
                                            kappa=mech_cfg.kappa, R=mech_cfg.R))
-                        sampler = real_sampler
+                        # Task sampler returns M tasks (scarcity)
+                        def scarce_sampler(n, rng, _s=real_sampler, _m=M):
+                            return _s(_m, rng)
+                        sampler = scarce_sampler
                     else:
                         fleet = create_fleet(
                             n_honest=N - n_strategic,
