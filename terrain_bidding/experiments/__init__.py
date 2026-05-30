@@ -30,6 +30,7 @@ class ExperimentMetrics:
     false_positive_rate: float     # honest robots in bottom 10% of scores
     mean_penalty_honest: float
     mean_penalty_adversary: float
+    total_welfare: float = 0.0     # sum of all robot utilities
 
 
 def compute_metrics(results: List[RoundResult], n_honest: int,
@@ -42,6 +43,7 @@ def compute_metrics(results: List[RoundResult], n_honest: int,
     all_costs = [[] for _ in range(N)]
     all_scores = [[] for _ in range(N)]
     all_penalties = [[] for _ in range(N)]
+    all_utilities = [[] for _ in range(N)]
 
     for r in results:
         for i in range(N):
@@ -49,11 +51,29 @@ def compute_metrics(results: List[RoundResult], n_honest: int,
                 all_costs[i].append(r.realized_costs[i])
                 all_scores[i].append(r.scores[i])
                 all_penalties[i].append(r.penalties[i])
+            all_utilities[i].append(r.utilities[i])
 
-    # Allocation efficiency: sum of realized costs / sum of oracle costs
-    total_realized = sum(np.sum(r.realized_costs[~np.isnan(r.realized_costs)]) for r in results)
-    total_oracle = oracle_costs.sum() if oracle_costs is not None else total_realized
-    alloc_eff = total_oracle / max(total_realized, 1e-8)
+    # Allocation efficiency: fraction of rounds where adversary does NOT displace honest robot
+    # 1.0 = adversary never displaces honest; lower = adversary gaming allocation
+    if oracle_costs is not None:
+        total_realized = sum(np.nansum(r.realized_costs) for r in results)
+        alloc_eff = oracle_costs.sum() / max(abs(total_realized), 1e-8)
+    elif n_adv > 0:
+        good_rounds = 0
+        total_rounds = 0
+        for r in results:
+            assigned = set(i for i in range(N) if r.assignments[i] >= 0)
+            unassigned = set(i for i in range(N) if r.assignments[i] < 0)
+            if unassigned:  # only count rounds with scarcity
+                total_rounds += 1
+                # Bad if adversary assigned AND honest robot unassigned
+                adv_assigned = any(i >= n_honest for i in assigned)
+                honest_unassigned = any(i < n_honest for i in unassigned)
+                if not (adv_assigned and honest_unassigned):
+                    good_rounds += 1
+        alloc_eff = good_rounds / max(total_rounds, 1)
+    else:
+        alloc_eff = 1.0
 
     # Scores by group
     honest_scores = [s for i in range(n_honest) for s in all_scores[i]]
@@ -73,16 +93,26 @@ def compute_metrics(results: List[RoundResult], n_honest: int,
     else:
         fp = 0
 
-    # Strategic gain: cost savings for adversaries
-    honest_costs = [c for i in range(n_honest) for c in all_costs[i]]
-    adv_costs = [c for i in range(n_honest, N) for c in all_costs[i]] if n_adv > 0 else []
-    mean_honest_cost = np.mean(honest_costs) if honest_costs else 0
-    mean_adv_cost = np.mean(adv_costs) if adv_costs else 0
-    strategic_gain = (mean_honest_cost - mean_adv_cost) / max(mean_honest_cost, 1e-8)
+    # Strategic gain: does the adversary have higher utility than honest robots?
+    # Positive = adversary profits from manipulation; negative = manipulation backfires
+    honest_utils = [u for i in range(n_honest) for u in all_utilities[i]]
+    adv_utils = [u for i in range(n_honest, N) for u in all_utilities[i]] if n_adv > 0 else []
+    if honest_utils and adv_utils and len(adv_utils) > 5:
+        mean_honest_util = np.mean(honest_utils)
+        mean_adv_util = np.mean(adv_utils)
+        # Gain = (adv_utility - honest_utility) / |honest_utility|
+        strategic_gain = np.clip(
+            (mean_adv_util - mean_honest_util) / max(abs(mean_honest_util), 0.01),
+            -2.0, 2.0)
+    else:
+        strategic_gain = 0.0
 
     # Penalties
     honest_pen = [p for i in range(n_honest) for p in all_penalties[i]]
     adv_pen = [p for i in range(n_honest, N) for p in all_penalties[i]] if n_adv > 0 else [0]
+
+    # Welfare: total fleet utility
+    total_welfare = sum(np.sum(r.utilities) for r in results)
 
     return ExperimentMetrics(
         condition="",
@@ -94,6 +124,7 @@ def compute_metrics(results: List[RoundResult], n_honest: int,
         false_positive_rate=fp,
         mean_penalty_honest=np.mean(honest_pen) if honest_pen else 0,
         mean_penalty_adversary=np.mean(adv_pen) if adv_pen else 0,
+        total_welfare=total_welfare,
     )
 
 

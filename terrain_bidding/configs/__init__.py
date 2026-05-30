@@ -84,7 +84,7 @@ class EnsembleConfig:
 @dataclass
 class MechanismConfig:
     N: int = 4                  # fleet size
-    R: float = 10.0             # completion reward
+    R: float = 5.0              # completion reward (normalized cost space, costs ~ 0±1)
     kappa: float = 2.0          # scoring penalty coefficient
     gamma: float = 1.0          # epistemic weighting in allocation
     S_baseline: float = None    # set from validation performance

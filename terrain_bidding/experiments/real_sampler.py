@@ -49,8 +49,8 @@ class RealFixedOffsetAdversary(EnsembleRobot):
 
 class RealAdaptiveAdversary(EnsembleRobot):
     """Adaptive adversary using real ensemble predictions."""
-    def __init__(self, robot_id: int, kappa: float = 2.0, R: float = 10.0,
-                 competitor_std: float = 200.0, **kwargs):
+    def __init__(self, robot_id: int, kappa: float = 2.0, R: float = 5.0,
+                 competitor_std: float = 1.0, **kwargs):
         super().__init__(robot_id, **kwargs)
         self.kappa = kappa
         self.R = R
@@ -80,8 +80,8 @@ class RealAdaptiveAdversary(EnsembleRobot):
 class RealLearningAdversary(EnsembleRobot):
     """Learning adversary using real ensemble predictions."""
     def __init__(self, robot_id: int, kappa_init: float = 0.5,
-                 learning_rate: float = 0.1, R: float = 10.0,
-                 competitor_std: float = 200.0, **kwargs):
+                 learning_rate: float = 0.1, R: float = 5.0,
+                 competitor_std: float = 1.0, **kwargs):
         super().__init__(robot_id, **kwargs)
         self.kappa_est = kappa_init
         self.lr = learning_rate
@@ -195,10 +195,9 @@ def make_real_task_sampler(data_path: str = "data/test.hdf5",
         # Denormalize predictions
         cost_mean = ensemble.cost_mean if hasattr(ensemble, 'cost_mean') else 0.0
         cost_std = ensemble.cost_std if hasattr(ensemble, 'cost_std') else 1.0
-        mus_denorm = mus.cpu().numpy() * cost_std + cost_mean
-        log_vars_denorm = log_vars.cpu().numpy() + 2 * np.log(cost_std)
-        all_mus.append(mus_denorm)
-        all_log_vars.append(log_vars_denorm)
+        # Keep in normalized space for proper scoring (var_ale ~ 1)
+        all_mus.append(mus.cpu().numpy())
+        all_log_vars.append(log_vars.cpu().numpy())
 
     all_mus = np.concatenate(all_mus, axis=1)  # (K, N)
     all_log_vars = np.concatenate(all_log_vars, axis=1)  # (K, N)
@@ -209,6 +208,11 @@ def make_real_task_sampler(data_path: str = "data/test.hdf5",
     n_samples = len(costs_np)
     print(f"Real task sampler ready: {n_samples} samples")
 
+    # Normalize costs to match prediction space
+    cost_mean = ensemble.cost_mean if hasattr(ensemble, 'cost_mean') else 0.0
+    cost_std = ensemble.cost_std if hasattr(ensemble, 'cost_std') else 1.0
+    costs_normalized = (costs_np - cost_mean) / cost_std
+
     # Compute per-sample aleatoric variance (for true_var_ale in SimTask)
     per_sample_var_ale = np.exp(all_log_vars).mean(axis=0)  # (N,)
 
@@ -218,7 +222,7 @@ def make_real_task_sampler(data_path: str = "data/test.hdf5",
         for j, idx in enumerate(indices):
             task = RealTask(
                 task_id=j,
-                true_mu=float(costs_np[idx]),  # actual realized cost as "true mean"
+                true_mu=float(costs_normalized[idx]),  # normalized realized cost
                 true_var_ale=float(per_sample_var_ale[idx]),
                 heightmap=heightmaps_np[idx],
                 scalars=scalars_np[idx],
