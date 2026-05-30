@@ -61,8 +61,36 @@ def train(save_dir: str = "checkpoints"):
     print(f"  View with: tensorboard --logdir {save_dir}")
     print(f"  Checkpoints saved every {train_cfg.runner.save_interval} iterations")
 
+    # Patch runner to also log to CSV
+    import csv
+    csv_path = os.path.join(save_dir, "training_log.csv")
+    csv_file = open(csv_path, "w", newline="")
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow(["iteration", "mean_reward", "mean_episode_length",
+                         "terrain_level", "learning_rate", "noise_std"])
+
+    _original_log = runner.log
+    def _csv_log(locs, *args, **kwargs):
+        _original_log(locs, *args, **kwargs)
+        try:
+            it = runner.current_learning_iteration
+            rew = locs.get("mean_reward", 0)
+            ep_len = locs.get("mean_episode_length", 0)
+            terrain = locs["infos"].get("episode", {}).get("terrain_level", 0) if "infos" in locs else 0
+            lr = runner.alg.learning_rate
+            std = locs.get("std", 0)
+            if hasattr(std, "mean"):
+                std = std.mean().item()
+            csv_writer.writerow([it, f"{rew:.4f}", f"{ep_len:.1f}",
+                                 f"{terrain:.2f}", f"{lr:.6f}", f"{std:.4f}"])
+            csv_file.flush()
+        except Exception:
+            pass
+    runner.log = _csv_log
+
     runner.learn(num_learning_iterations=train_cfg.runner.max_iterations,
                  init_at_random_ep_len=True)
+    csv_file.close()
 
     # Save final policy in our expected format
     import torch
