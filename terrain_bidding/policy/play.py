@@ -71,7 +71,7 @@ def play(checkpoint_path: str = None):
     # Run
     obs = env.get_observations()
     while True:
-        actions = policy(obs)
+        actions = policy(obs.to("cuda:0"))
         env.step(actions)
         obs = env.get_observations()
 
