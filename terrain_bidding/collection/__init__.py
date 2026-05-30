@@ -69,7 +69,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     env_cfg.terrain.num_cols = 20
     env_cfg.terrain.max_init_terrain_level = 19
     env_cfg.terrain.curriculum = False  # disable curriculum for collection
-    print(f"Creating env: {num_envs} envs, 5x5 terrain...")
+    print(f"Creating env: {num_envs} envs, {env_cfg.terrain.num_rows}x{env_cfg.terrain.num_cols} terrain...")
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
 
     # Load policy
