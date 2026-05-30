@@ -148,8 +148,10 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
                 distance = np.linalg.norm(current_pos[:2] - start_pos[:2])
                 elevation = current_pos[2] - start_pos[2]
 
-                # Terrain type from terrain column (actual type, not difficulty)
-                terrain_type = int(env.terrain_types[idx].item())
+                # Terrain type from terrain column mapped to category
+                # With 20 cols and proportions [0.2]*5: cols 0-3=type0, 4-7=type1, etc.
+                col = int(env.terrain_types[idx].item())
+                terrain_type = min(col // 4, 4)
 
                 all_heightmaps.append(hm)
                 all_slopes.append(slope)
