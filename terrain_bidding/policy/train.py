@@ -10,13 +10,28 @@ try:
     import isaacgym  # noqa: F401 — must be imported before torch
     from isaacgym import gymapi
     from legged_gym.envs import LeggedRobot
-    from legged_gym.utils.helpers import class_to_dict, get_args, update_cfg_from_args
     from rsl_rl.runners import OnPolicyRunner
     HAS_ISAAC = True
 except ImportError:
     HAS_ISAAC = False
 
 from terrain_bidding.configs import PolicyConfig
+
+
+def class_to_dict(obj):
+    """Convert nested config class to dict."""
+    result = {}
+    for key in dir(obj):
+        if key.startswith("_"):
+            continue
+        val = getattr(obj, key)
+        if callable(val):
+            continue
+        if isinstance(val, type):
+            result[key] = class_to_dict(val)
+        else:
+            result[key] = val
+    return result
 
 
 def train(save_dir: str = "checkpoints"):

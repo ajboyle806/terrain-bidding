@@ -7,9 +7,23 @@ def play(checkpoint_path: str = None):
     """Run trained policy with visualization."""
     import isaacgym  # noqa: F401
     from isaacgym import gymapi
-    from legged_gym.utils.helpers import class_to_dict
     from rsl_rl.runners import OnPolicyRunner
     from terrain_bidding.envs import TerrainBiddingEnv, TerrainBiddingEnvCfg, TerrainBiddingPPOCfg
+
+    def class_to_dict(obj):
+        """Convert nested config class to dict (avoids legged_gym circular import)."""
+        result = {}
+        for key in dir(obj):
+            if key.startswith("_"):
+                continue
+            val = getattr(obj, key)
+            if callable(val):
+                continue
+            if isinstance(val, type):
+                result[key] = class_to_dict(val)
+            else:
+                result[key] = val
+        return result
 
     # Find latest checkpoint if not specified
     if checkpoint_path is None:
