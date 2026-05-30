@@ -127,7 +127,7 @@ if HAS_ISAAC:
             entropy_coef = 0.01
             clip_param = 0.2
             learning_rate = 1e-3
-            schedule = 'adaptive'
+            schedule = 'fixed'
             desired_kl = 0.01
             lam = 0.95
 
