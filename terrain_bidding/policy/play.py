@@ -59,7 +59,14 @@ def play(checkpoint_path: str = None):
 
     env_cfg = TerrainBiddingEnvCfg()
     env_cfg.env.num_envs = 16
+    # Force stairs terrain
+    env_cfg.terrain.terrain_proportions = [0.0, 0.0, 0.5, 0.5, 0.0]
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=False)
+
+    # Set camera close to the action
+    cam_pos = gymapi.Vec3(3.0, 0.0, 2.0)
+    cam_target = gymapi.Vec3(0.0, 0.0, 0.0)
+    env.gym.viewer_camera_look_at(env.viewer, None, cam_pos, cam_target)
 
     # Load policy
     train_cfg = TerrainBiddingPPOCfg()
