@@ -96,14 +96,33 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     episode_steps = np.zeros(num_envs, dtype=int)
     start_positions = env.root_states[:, :3].clone()
 
+    # Goal-directed: set a goal 8m ahead for each robot
+    goal_distance = 8.0  # meters
+    goal_tolerance = 0.5
+    goal_directions = torch.randn(num_envs, 2, device="cuda:0")
+    goal_directions = goal_directions / goal_directions.norm(dim=1, keepdim=True)
+    goal_positions = start_positions[:, :2] + goal_directions * goal_distance
+
     target_rollouts = cfg.num_rollouts
     collected = 0
     total_steps = 0
     max_steps = target_rollouts * 500  # safety limit
+    max_episode_steps = int(15.0 / (0.005 * 4))  # 15s timeout
 
     obs = env.get_observations()
     print(f"Target: {target_rollouts} rollouts. Starting collection loop...")
     while collected < target_rollouts and total_steps < max_steps:
+        # Override commands to point toward goal
+        with torch.no_grad():
+            pos_2d = env.root_states[:, :2]
+            to_goal = goal_positions - pos_2d
+            dist_to_goal = to_goal.norm(dim=1, keepdim=True).clamp(min=0.1)
+            direction = to_goal / dist_to_goal
+            # Set forward velocity command (1.0 m/s toward goal)
+            env.commands[:, 0] = direction[:, 0] * 1.0  # vx
+            env.commands[:, 1] = direction[:, 1] * 0.3  # vy
+            env.commands[:, 2] = 0.0  # no yaw rate
+
         # Step policy (no grad to prevent memory buildup)
         with torch.no_grad():
             actions = policy(obs)
@@ -124,12 +143,20 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
         if total_steps % 5000 == 0:
             torch.cuda.empty_cache()
 
-        # Check for episode resets
-        reset_ids = env.reset_buf.nonzero(as_tuple=False).squeeze(-1)
-        for idx in reset_ids.cpu().numpy():
+        # Check goal reached or timeout/fall
+        with torch.no_grad():
+            dist_to_goal_now = (goal_positions - env.root_states[:, :2]).norm(dim=1)
+            reached_goal = dist_to_goal_now < goal_tolerance
+            timed_out = torch.tensor(episode_steps >= max_episode_steps, device="cuda:0")
+            fell = env.reset_buf.bool() & ~timed_out
+
+        # Process completed episodes (goal reached, timeout, or fall)
+        done_mask = reached_goal | env.reset_buf.bool()
+        done_ids = done_mask.nonzero(as_tuple=False).squeeze(-1)
+        for idx in done_ids.cpu().numpy():
             idx = int(idx)
-            # Only save if episode was long enough (not immediate fall)
-            if episode_steps[idx] > 200:  # at least 4 seconds of traversal
+            # Only save successful goal reaches
+            if reached_goal[idx] and episode_steps[idx] > 20:
                 dt = 0.005 * 4  # sim_dt * decimation = control dt
                 duration = episode_steps[idx] * dt
                 energy = episode_energy[idx].item() * dt
@@ -173,6 +200,10 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
             episode_energy[idx] = 0.0
             episode_steps[idx] = 0
             start_positions[idx] = env.root_states[idx, :3].clone().detach()
+            # New random goal for this env
+            new_dir = torch.randn(2, device="cuda:0")
+            new_dir = new_dir / new_dir.norm().clamp(min=0.1)
+            goal_positions[idx] = env.root_states[idx, :2].detach() + new_dir * goal_distance
 
     print(f"Collection done: {collected} rollouts in {total_steps} steps")
 
