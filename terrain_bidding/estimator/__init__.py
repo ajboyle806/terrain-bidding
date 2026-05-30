@@ -112,7 +112,9 @@ class Ensemble:
         Path(path).mkdir(parents=True, exist_ok=True)
         for i, net in enumerate(self.networks):
             torch.save(net.state_dict(), f"{path}/net_{i}.pt")
-        torch.save({"temperature": self.temperature}, f"{path}/meta.pt")
+        torch.save({"temperature": self.temperature,
+                    "cost_mean": getattr(self, 'cost_mean', 0.0),
+                    "cost_std": getattr(self, 'cost_std', 1.0)}, f"{path}/meta.pt")
 
     def load(self, path: str):
         for i, net in enumerate(self.networks):
@@ -130,7 +132,7 @@ def heteroscedastic_nll(mu, log_var, target):
 class RolloutDataset(torch.utils.data.Dataset):
     """Load HDF5 rollout data for ensemble training."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, cost_mean: float = None, cost_std: float = None):
         with h5py.File(path, "r") as f:
             self.heightmaps = torch.tensor(f["heightmap"][:], dtype=torch.float32)
             self.scalars = torch.tensor(np.stack([
@@ -140,12 +142,20 @@ class RolloutDataset(torch.utils.data.Dataset):
             self.costs = torch.tensor(f["cost"][:], dtype=torch.float32)
         # Add channel dim to heightmaps
         self.heightmaps = self.heightmaps.unsqueeze(1)  # (N, 1, 16, 16)
+        # Normalize costs
+        if cost_mean is None:
+            self.cost_mean = self.costs.mean().item()
+            self.cost_std = self.costs.std().item()
+        else:
+            self.cost_mean = cost_mean
+            self.cost_std = cost_std
+        self.costs_normalized = (self.costs - self.cost_mean) / self.cost_std
 
     def __len__(self):
         return len(self.costs)
 
     def __getitem__(self, idx):
-        return self.heightmaps[idx], self.scalars[idx], self.costs[idx]
+        return self.heightmaps[idx], self.scalars[idx], self.costs_normalized[idx]
 
 
 def train_ensemble(cfg: EnsembleConfig = EnsembleConfig(), data_dir: str = "data",
@@ -154,9 +164,13 @@ def train_ensemble(cfg: EnsembleConfig = EnsembleConfig(), data_dir: str = "data
     """Train K independent networks with different seeds."""
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     train_ds = RolloutDataset(f"{data_dir}/train.hdf5")
-    val_ds = RolloutDataset(f"{data_dir}/val.hdf5")
+    val_ds = RolloutDataset(f"{data_dir}/val.hdf5",
+                            cost_mean=train_ds.cost_mean, cost_std=train_ds.cost_std)
+    print(f"Cost normalization: mean={train_ds.cost_mean:.1f}, std={train_ds.cost_std:.1f}")
 
     ensemble = Ensemble(cfg, large=large, device=device)
+    ensemble.cost_mean = train_ds.cost_mean
+    ensemble.cost_std = train_ds.cost_std
 
     for k in range(cfg.K):
         print(f"\n=== Training network {k+1}/{cfg.K} ===")
