@@ -64,11 +64,7 @@ def play(checkpoint_path: str = None):
     # Load policy
     train_cfg = TerrainBiddingPPOCfg()
     train_cfg_dict = class_to_dict(train_cfg)
-    # Older rsl_rl expects flat dict with keys from runner/policy/algorithm merged
-    runner_cfg = {**train_cfg_dict.get("runner", {}),
-                  **train_cfg_dict.get("policy", {}),
-                  **train_cfg_dict.get("algorithm", {})}
-    runner = OnPolicyRunner(env, runner_cfg, log_dir=None, device="cuda:0")
+    runner = OnPolicyRunner(env, train_cfg_dict, log_dir=None, device="cuda:0")
     runner.load(checkpoint_path)
     policy = runner.get_inference_policy(device="cuda:0")
 
