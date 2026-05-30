@@ -62,11 +62,12 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 16
+    num_envs = 4
     env_cfg.env.num_envs = num_envs
-    # Reduce terrain size to fit in VRAM during collection
-    env_cfg.terrain.num_rows = 10
-    env_cfg.terrain.num_cols = 10
+    # Minimal terrain to fit in 8GB VRAM
+    env_cfg.terrain.num_rows = 5
+    env_cfg.terrain.num_cols = 5
+    print(f"Creating env: {num_envs} envs, 5x5 terrain...")
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
 
     # Load policy
@@ -98,12 +99,16 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     max_steps = target_rollouts * 500  # safety limit
 
     obs = env.get_observations()
+    print(f"Target: {target_rollouts} rollouts. Starting collection loop...")
     while collected < target_rollouts and total_steps < max_steps:
         # Step policy
         actions = policy(obs)
         env.step(actions)
         obs = env.get_observations()
         total_steps += 1
+
+        if total_steps % 50 == 0:
+            print(f"  step {total_steps} | collected {collected}/{target_rollouts}")
 
         # Record torques for all envs
         torques = env.torques.detach().cpu().numpy()  # (num_envs, 12)
