@@ -129,7 +129,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
         for idx in reset_ids.cpu().numpy():
             idx = int(idx)
             # Only save if episode was long enough (not immediate fall)
-            if episode_steps[idx] > 50:  # at least 1 second
+            if episode_steps[idx] > 200:  # at least 4 seconds of traversal
                 dt = 0.005 * 4  # sim_dt * decimation = control dt
                 duration = episode_steps[idx] * dt
                 energy = episode_energy[idx].item() * dt
