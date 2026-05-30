@@ -58,7 +58,7 @@ def play(checkpoint_path: str = None):
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    env_cfg.env.num_envs = 16  # small for visualization on 8GB VRAM
+    env_cfg.env.num_envs = 1
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=False)
 
     # Load policy
@@ -72,7 +72,8 @@ def play(checkpoint_path: str = None):
     obs = env.get_observations()
     while True:
         actions = policy(obs)
-        obs, _, _, _ = env.step(actions)
+        env.step(actions)
+        obs = env.get_observations()
 
 
 if __name__ == "__main__":
