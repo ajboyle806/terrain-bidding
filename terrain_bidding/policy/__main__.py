@@ -1,6 +1,12 @@
 """Entry point for: python -m terrain_bidding.policy"""
 import sys
 
+# Isaac Gym must be imported before torch
+try:
+    import isaacgym  # noqa: F401
+except ImportError:
+    pass
+
 if len(sys.argv) > 1 and sys.argv[1] == "evaluate":
     from terrain_bidding.policy.evaluate import evaluate_policy, check_gate
     path = sys.argv[2] if len(sys.argv) > 2 else "checkpoints/policy_best.pt"
