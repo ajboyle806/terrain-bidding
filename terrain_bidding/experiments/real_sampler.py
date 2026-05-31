@@ -25,25 +25,46 @@ class RealTask(SimTask):
         self.terrain_type = terrain_type
 
 
+class PrivateObsTask(SimTask):
+    """Task where each robot has a private terrain observation.
+
+    Simulates private information: robots observe different terrain patches
+    for the same task region, producing different cost predictions.
+    The true cost is drawn from one realization.
+    """
+
+    def __init__(self, task_id: int, true_mu: float, true_var_ale: float,
+                 robot_observations: dict, terrain_type: int = 0):
+        """
+        Args:
+            robot_observations: {robot_id: (ensemble_mus, ensemble_log_vars)}
+        """
+        super().__init__(task_id=task_id, true_mu=true_mu, true_var_ale=true_var_ale)
+        self.robot_observations = robot_observations
+        self.terrain_type = terrain_type
+
+
 class EnsembleRobot(HonestRobot):
-    """Robot that uses real ensemble predictions instead of simulated ones."""
+    """Robot that uses real ensemble predictions from private observations."""
 
     def _get_ensemble_predictions(self, task):
+        if isinstance(task, PrivateObsTask) and self.robot_id in task.robot_observations:
+            mus, log_vars = task.robot_observations[self.robot_id]
+            return mus.copy(), log_vars.copy()
         if isinstance(task, RealTask):
             return task.ensemble_mus.copy(), task.ensemble_log_vars.copy()
-        # Fallback to simulated predictions for non-real tasks
         return super()._get_ensemble_predictions(task)
 
 
 class RealFixedOffsetAdversary(EnsembleRobot):
-    """Fixed offset adversary using real ensemble predictions."""
-    def __init__(self, robot_id: int, factor: float = 0.7, **kwargs):
+    """Fixed offset adversary: bids lower than true prediction by a fixed amount."""
+    def __init__(self, robot_id: int, offset: float = 0.5, **kwargs):
         super().__init__(robot_id, **kwargs)
-        self.factor = factor
+        self.offset = offset  # subtract this from predictions (in normalized units)
 
     def bid(self, task, robot_idx: int, task_idx: int):
         mus, log_vars = self._get_ensemble_predictions(task)
-        mus = mus * self.factor
+        mus = mus - self.offset  # bid lower to win allocation
         return Bid(robot_id=robot_idx, task_id=task_idx, mus=mus, log_vars=log_vars)
 
 
@@ -218,19 +239,40 @@ def make_real_task_sampler(data_path: str = "data/test.hdf5",
     # Compute per-sample aleatoric variance (for true_var_ale in SimTask)
     per_sample_var_ale = np.exp(all_log_vars).mean(axis=0)  # (N,)
 
-    def sampler(n_tasks: int, rng: np.random.Generator) -> List[RealTask]:
+    # Group samples by terrain type for private observation sampling
+    type_indices = {}
+    for i, t in enumerate(terrain_types):
+        type_indices.setdefault(int(t), []).append(i)
+
+    def sampler(n_tasks: int, rng: np.random.Generator, n_robots: int = 4):
+        """Each task gives each robot a DIFFERENT terrain sample from the same type.
+
+        This simulates private observations: robots observe different patches
+        of the same terrain region, producing heterogeneous predictions.
+        """
         indices = rng.choice(n_samples, size=n_tasks, replace=True)
         tasks = []
         for j, idx in enumerate(indices):
-            task = RealTask(
+            # True cost comes from this sample
+            true_cost = float(costs_normalized[idx])
+            true_var = float(per_sample_var_ale[idx])
+            t_type = int(terrain_types[idx])
+
+            # Each robot gets a different sample from the same terrain type
+            same_type = type_indices.get(t_type, list(range(n_samples)))
+            robot_indices = rng.choice(same_type, size=n_robots, replace=True)
+
+            robot_obs = {}
+            for robot_id in range(n_robots):
+                r_idx = robot_indices[robot_id]
+                robot_obs[robot_id] = (all_mus[:, r_idx], all_log_vars[:, r_idx])
+
+            task = PrivateObsTask(
                 task_id=j,
-                true_mu=float(costs_normalized[idx]),  # normalized realized cost
-                true_var_ale=float(per_sample_var_ale[idx]),
-                heightmap=heightmaps_np[idx],
-                scalars=scalars_np[idx],
-                ensemble_mus=all_mus[:, idx],
-                ensemble_log_vars=all_log_vars[:, idx],
-                terrain_type=int(terrain_types[idx]),
+                true_mu=true_cost,
+                true_var_ale=true_var,
+                robot_observations=robot_obs,
+                terrain_type=t_type,
             )
             tasks.append(task)
         return tasks
