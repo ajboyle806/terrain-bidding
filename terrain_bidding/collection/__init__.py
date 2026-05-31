@@ -21,8 +21,15 @@ from terrain_bidding.configs import CollectionConfig, CostWeights
 def collect(cfg: CollectionConfig = CollectionConfig(),
             policy_path: str = "checkpoints/model_8000.pt",
             save_dir: str = "data",
-            device: str = "cuda"):
-    """Collect rollout dataset using parallel envs."""
+            device: str = "cuda",
+            terrain_mode: str = "in_distribution"):
+    """Collect rollout dataset using parallel envs.
+
+    Args:
+        terrain_mode: "in_distribution" (types 0-3, for ensemble training)
+                      "held_out" (type 4 = discrete obstacles, for testing)
+                      "all" (all types, original behavior)
+    """
     from isaacgym import gymapi
     from rsl_rl.runners import OnPolicyRunner
     from terrain_bidding.envs import TerrainBiddingEnv, TerrainBiddingEnvCfg, TerrainBiddingPPOCfg
@@ -62,14 +69,25 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 8192
+    num_envs = 2048
     env_cfg.env.num_envs = num_envs
-    # Full terrain grid (same as training)
     env_cfg.terrain.num_rows = 20
     env_cfg.terrain.num_cols = 20
     env_cfg.terrain.max_init_terrain_level = 19
-    env_cfg.terrain.curriculum = False  # disable curriculum for collection
-    print(f"Creating env: {num_envs} envs, {env_cfg.terrain.num_rows}x{env_cfg.terrain.num_cols} terrain...")
+    env_cfg.terrain.curriculum = False
+
+    # Set terrain proportions based on mode
+    if terrain_mode == "in_distribution":
+        env_cfg.terrain.terrain_proportions = [0.25, 0.25, 0.25, 0.25, 0.0]
+        print(f"Mode: IN-DISTRIBUTION (types 0-3)")
+    elif terrain_mode == "held_out":
+        env_cfg.terrain.terrain_proportions = [0.0, 0.0, 0.0, 0.0, 1.0]
+        print(f"Mode: HELD-OUT (type 4 = discrete obstacles)")
+    else:
+        env_cfg.terrain.terrain_proportions = [0.2, 0.2, 0.2, 0.2, 0.2]
+        print(f"Mode: ALL terrain types")
+
+    print(f"Creating env: {num_envs} envs, 20x20 terrain...")
     env = TerrainBiddingEnv(env_cfg, sim_params, gymapi.SIM_PHYSX, "cuda:0", headless=True)
 
     # Load policy
@@ -103,7 +121,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     goal_directions = goal_directions / goal_directions.norm(dim=1, keepdim=True)
     goal_positions = start_positions[:, :2] + goal_directions * goal_distance
 
-    target_rollouts = cfg.num_rollouts
+    target_rollouts = cfg.held_out_rollouts if terrain_mode == "held_out" else cfg.num_rollouts
     collected = 0
     total_steps = 0
     max_steps = target_rollouts * 500  # safety limit

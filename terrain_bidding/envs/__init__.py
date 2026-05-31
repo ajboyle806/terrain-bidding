@@ -97,7 +97,7 @@ if HAS_ISAAC:
             soft_dof_pos_limit = 0.9
             base_height_target = 0.25
             class scales(LeggedRobotCfg.rewards.scales):
-                torques = -0.001
+                torques = -0.005
                 dof_pos_limits = -10.0
                 feet_air_time = 2.0
 
@@ -133,7 +133,7 @@ if HAS_ISAAC:
             policy_class_name = 'ActorCritic'
             algorithm_class_name = 'PPO'
             num_steps_per_env = 24
-            max_iterations = 10000
+            max_iterations = 15000
             save_interval = 500
             experiment_name = 'terrain_bidding'
             run_name = 'a1'
