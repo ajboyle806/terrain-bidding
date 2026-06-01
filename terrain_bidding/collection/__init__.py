@@ -80,6 +80,15 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     if terrain_mode == "in_distribution":
         env_cfg.terrain.terrain_proportions = [0.25, 0.25, 0.25, 0.25, 0.0]
         print(f"Mode: IN-DISTRIBUTION (types 0-3)")
+    elif terrain_mode == "in_distribution_012":
+        env_cfg.terrain.terrain_proportions = [0.33, 0.33, 0.34, 0.0, 0.0]
+        print(f"Mode: IN-DISTRIBUTION (types 0-2 only)")
+    elif terrain_mode == "ood_type3":
+        env_cfg.terrain.terrain_proportions = [0.0, 0.0, 0.0, 1.0, 0.0]
+        print(f"Mode: OOD MILD (type 3 = stairs down)")
+    elif terrain_mode == "ood_type4":
+        env_cfg.terrain.terrain_proportions = [0.0, 0.0, 0.0, 0.0, 1.0]
+        print(f"Mode: OOD STRONG (type 4 = discrete obstacles)")
     elif terrain_mode == "held_out":
         env_cfg.terrain.terrain_proportions = [0.0, 0.0, 0.0, 0.0, 1.0]
         print(f"Mode: HELD-OUT (type 4 = discrete obstacles)")
