@@ -53,7 +53,7 @@ class PolicyConfig:
 
 @dataclass
 class CollectionConfig:
-    num_rollouts: int = 50_000
+    num_rollouts: int = 30_000
     held_out_rollouts: int = 5_000
     distance_range: tuple = (3.0, 15.0)
     elevation_range: tuple = (-2.0, 2.0)

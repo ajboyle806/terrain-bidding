@@ -69,7 +69,7 @@ def collect(cfg: CollectionConfig = CollectionConfig(),
     sim_params.physx.contact_collection = gymapi.ContactCollection(2)
 
     env_cfg = TerrainBiddingEnvCfg()
-    num_envs = 2048
+    num_envs = 1024
     env_cfg.env.num_envs = num_envs
     env_cfg.terrain.num_rows = 20
     env_cfg.terrain.num_cols = 20
