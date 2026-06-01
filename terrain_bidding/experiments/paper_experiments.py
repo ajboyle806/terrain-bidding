@@ -26,10 +26,11 @@ def setup():
     rng = np.random.default_rng(0)
     scores = []
     for _ in range(1000):
-        tasks = real_sampler(1, rng)
+        tasks = real_sampler(1, rng, n_robots=4)
         t = tasks[0]
-        mu_hat = t.ensemble_mus.mean()
-        var_ale = np.exp(t.ensemble_log_vars).mean()
+        mus, log_vars = t.robot_observations[0]
+        mu_hat = mus.mean()
+        var_ale = np.exp(log_vars).mean()
         scores.append(gaussian_score(t.true_mu, mu_hat, var_ale))
     S_baseline = float(np.mean(scores))
     print(f"S_baseline = {S_baseline:.4f}")
@@ -83,7 +84,7 @@ def run_convergence_experiment(real_sampler, S_baseline):
     fleet.append(learner)
 
     def scarce(n, rng):
-        return real_sampler(M, rng)
+        return real_sampler(M, rng, n_robots=N)
 
     # Run and track κ_est per round
     rng = np.random.default_rng(42)
@@ -102,7 +103,7 @@ def run_convergence_experiment(real_sampler, S_baseline):
 
     rng2 = np.random.default_rng(42)
     for round_idx in range(5000):
-        tasks = real_sampler(M, rng2)
+        tasks = real_sampler(M, rng2, n_robots=N)
         bids = []
         for i, robot in enumerate(fleet2):
             robot_bids = [robot.bid(tasks[j], i, j) for j in range(M)]
@@ -162,7 +163,7 @@ def run_welfare_experiment(real_sampler, S_baseline):
                     robot_id=N - n_adv + i))
 
             def scarce(n, rng):
-                return real_sampler(M, rng)
+                return real_sampler(M, rng, n_robots=N)
 
             sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg,
                                num_rounds=3000, seed=42)
@@ -190,7 +191,7 @@ def run_kappa_sweep_real(real_sampler, S_baseline):
             robot_id=3, kappa=kappa, R=mech_cfg.R))
 
         def scarce(n, rng):
-            return real_sampler(M, rng)
+            return real_sampler(M, rng, n_robots=N)
 
         sim_cfg = SimConfig(mechanism=FullMechanism(), mech_cfg=mech_cfg,
                            num_rounds=3000, seed=42)
@@ -208,7 +209,7 @@ def run_kappa_sweep_real(real_sampler, S_baseline):
                        num_rounds=100, seed=42)
 
     def scarce(n, rng):
-        return real_sampler(M, rng)
+        return real_sampler(M, rng, n_robots=N)
 
     L = estimate_lipschitz(sim_cfg, fleet_honest, scarce, delta=0.5, n_samples=1000)
     # Average aleatoric variance from normalized predictions
@@ -244,7 +245,7 @@ def run_main_comparison(real_sampler, S_baseline):
                 robot_id=3, kappa=mech_cfg.kappa, R=mech_cfg.R))
 
             def scarce(n, rng):
-                return real_sampler(M, rng)
+                return real_sampler(M, rng, n_robots=N)
 
             sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg,
                                num_rounds=3000, seed=42)
