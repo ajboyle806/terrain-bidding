@@ -319,6 +319,134 @@ def exp_lipschitz(held_out, S_baseline):
     print(f"  Theoretical κ* = R·L·σ²_ale = {kappa_star:.4f}")
 
 
+# ─── Experiment 8: Swapped Ablation ──────────────────────────────────────────
+
+class SwappedMechanism:
+    """WRONG decomposition: epistemic for scoring, aleatoric for allocation.
+    
+    This should perform worse than the correct decomposition, proving
+    the assignment of uncertainty types to mechanism functions is principled.
+    """
+    def allocate(self, bids, cfg):
+        N = len(bids)
+        M = len(bids[0]) if bids else 0
+        matrix = np.zeros((N, M))
+        for i, robot_bids in enumerate(bids):
+            for bid in robot_bids:
+                mu_hat = bid.mus.mean()
+                var_ale = np.exp(bid.log_vars).mean()
+                # SWAPPED: use aleatoric in allocation (wrong)
+                matrix[i, bid.task_id] = mu_hat + cfg.gamma * var_ale
+        from terrain_bidding.mechanism import allocate
+        return allocate(matrix)
+
+    def score(self, bids, assignments, realized_costs, cfg):
+        N = len(bids)
+        scores = np.zeros(N)
+        for i in range(N):
+            if assignments[i] < 0:
+                continue
+            bid = bids[i][assignments[i]]
+            mu_hat = bid.mus.mean()
+            var_epi = ((bid.mus - mu_hat) ** 2).mean()
+            # SWAPPED: use epistemic in scoring (wrong)
+            scores[i] = gaussian_score(realized_costs[i], mu_hat, max(var_epi, 1e-6))
+        return scores
+
+
+def exp_swapped_ablation(held_out, S_baseline):
+    """Prove decomposition assignment matters: correct vs swapped vs total."""
+    print("\n" + "="*70)
+    print("EXP 8: SWAPPED ABLATION (proves decomposition choice is principled)")
+    print("="*70)
+    N, M = 4, 1
+    mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=S_baseline)
+
+    mechanisms = [
+        ("full (correct)", FullMechanism()),
+        ("total_var", TotalVarianceMechanism()),
+        ("swapped (wrong)", SwappedMechanism()),
+        ("vanilla (none)", VanillaMechanism()),
+    ]
+
+    for mech_name, mech in mechanisms:
+        fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
+        fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
+
+        def s(n, rng):
+            return held_out(M, rng, n_robots=N)
+
+        sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg,
+                           num_rounds=2000, seed=42)
+        results = simulate(sim_cfg, fleet, s)
+        m = compute_metrics(results, 3, None)
+        print(f"  {mech_name:20s} | Sep={m.detection_separation:+.4f} "
+              f"FPR={m.false_positive_rate:.4f} Gain={m.strategic_gain:+.4f}")
+
+
+# ─── Experiment 9: Learning Adversary Multi-Initialization ────────────────────
+
+def exp_learning_multi_init(held_out, S_baseline):
+    """Show learning adversary converges to honesty across different initializations."""
+    print("\n" + "="*70)
+    print("EXP 9: LEARNING ADVERSARY CONVERGENCE (multiple initializations)")
+    print("="*70)
+    N, M = 4, 1
+    mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=S_baseline)
+    n_rounds = 3000
+
+    print(f"  {'Init κ':>8} | {'Final κ_est':>12} | {'Final δ*':>10} | {'Converged?':>10}")
+    print("  " + "-"*55)
+
+    for kappa_init in [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0]:
+        learner = REAL_ADVERSARY_TYPES["learning"](
+            robot_id=3, kappa_init=kappa_init, R=mech_cfg.R)
+        fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
+        fleet.append(learner)
+
+        def s(n, rng):
+            return held_out(M, rng, n_robots=N)
+
+        sim_cfg = SimConfig(mechanism=FullMechanism(), mech_cfg=mech_cfg,
+                           num_rounds=n_rounds, seed=42)
+        simulate(sim_cfg, fleet, s)
+
+        converged = "YES" if learner._last_delta < 0.05 else "NO"
+        print(f"  {kappa_init:8.1f} | {learner.kappa_est:12.4f} | "
+              f"{learner._last_delta:10.4f} | {converged:>10}")
+
+
+# ─── Experiment 10: OOD Gap Expansion ─────────────────────────────────────────
+
+def exp_ood_gap(in_dist, held_out, S_baseline):
+    """Show decomposition gap widens under distribution shift."""
+    print("\n" + "="*70)
+    print("EXP 10: DECOMPOSITION GAP vs DISTRIBUTION SHIFT")
+    print("="*70)
+    N, M = 4, 1
+    mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=S_baseline)
+
+    for terrain_name, sampler in [("in-distribution", in_dist), ("held-out (OOD)", held_out)]:
+        seps = {}
+        for mech_name, mech in [("total_var", TotalVarianceMechanism()),
+                                 ("full", FullMechanism())]:
+            fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
+            fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
+
+            def s(n, rng, _sam=sampler):
+                return _sam(M, rng, n_robots=N)
+
+            sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg,
+                               num_rounds=2000, seed=42)
+            results = simulate(sim_cfg, fleet, s)
+            m = compute_metrics(results, 3, None)
+            seps[mech_name] = m.detection_separation
+
+        gap = seps["full"] - seps["total_var"]
+        print(f"  {terrain_name:20s} | full={seps['full']:+.4f} "
+              f"tv={seps['total_var']:+.4f} | gap={gap:+.4f}")
+
+
 # ─── Run All ──────────────────────────────────────────────────────────────────
 
 def run_all():
@@ -335,6 +463,9 @@ def run_all():
     exp_detection_vs_deterrence(held_out, S_baseline)
     exp_penalty_ratio(held_out, S_baseline)
     exp_lipschitz(held_out, S_baseline)
+    exp_swapped_ablation(held_out, S_baseline)
+    exp_learning_multi_init(held_out, S_baseline)
+    exp_ood_gap(in_dist, held_out, S_baseline)
 
     with open("outputs/focused_results.pkl", "wb") as f:
         pickle.dump(results, f)
