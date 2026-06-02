@@ -35,7 +35,11 @@ collect(cfg=cfg, save_dir='data/ood_strong', terrain_mode='ood_type4')
 
 elif [ "$STEP" = "3" ]; then
     echo "=== Step 3: Training ensemble on types 0-2 only ==="
-    python -m terrain_bidding.estimator
+    python -c "
+import isaacgym
+from terrain_bidding.estimator import train_ensemble
+train_ensemble(data_dir='data/train_types012')
+"
     echo "Done. Now push:"
     echo "  git add -f data/ checkpoints/ensemble/"
     echo "  git commit -m 'data: multi-OOD split'"
