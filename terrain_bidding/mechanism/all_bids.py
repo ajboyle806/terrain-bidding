@@ -17,8 +17,9 @@ class AllBidsScoringMechanism:
     of whether it was assigned.
     """
 
-    def __init__(self, use_total_var=False):
+    def __init__(self, use_total_var=False, relative=False):
         self.use_total_var = use_total_var
+        self.relative = relative  # if True, penalize relative to fleet mean per task
 
     def allocate(self, bids, cfg):
         """Same as FullMechanism — epistemic weighting."""
@@ -70,4 +71,10 @@ class AllBidsScoringMechanism:
         for i in range(N):
             if n_scored[i] > 0:
                 scores[i] /= n_scored[i]
+
+        # Relative scoring: subtract fleet mean per task so penalty is relative
+        if self.relative and n_scored.sum() > 0:
+            fleet_mean = scores[n_scored > 0].mean()
+            scores = scores - fleet_mean  # positive = above average, negative = below
+
         return scores
