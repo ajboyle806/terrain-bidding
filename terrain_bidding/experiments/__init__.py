@@ -103,7 +103,7 @@ def compute_metrics(results: List[RoundResult], n_honest: int,
         # Gain = (adv_utility - honest_utility) / |honest_utility|
         strategic_gain = np.clip(
             (mean_adv_util - mean_honest_util) / max(abs(mean_honest_util), 0.01),
-            -2.0, 2.0)
+            -10.0, 10.0)
     else:
         strategic_gain = 0.0
 
