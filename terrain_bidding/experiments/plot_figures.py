@@ -40,6 +40,11 @@ def fig1(data):
     ax1.set_xticks(x); ax1.set_xticklabels(labels)
     ax1.set_ylabel("Detection sep."); ax1.set_title("(a) Detection")
     ax1.axhline(0, color="k", linewidth=0.5); ax1.legend()
+    ax1.set_ylim(-10, max(seps_b) * 1.5)  # clip to show green bars
+    # Annotate clipped orange bars
+    for i, v in enumerate(seps_a):
+        if v < -10:
+            ax1.annotate(f"{v:.0f}", xy=(x[i] - w/2, -9.5), fontsize=7, ha="center", color="#ff7f0e")
 
     fprs_a = [fig1d[t]["assigned"]["fpr_mean"]*100 for t in terrains]
     fprs_b = [fig1d[t]["allbids"]["fpr_mean"]*100 for t in terrains]
