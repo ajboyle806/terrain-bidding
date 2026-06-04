@@ -44,10 +44,10 @@ def run():
     fig1 = {}
     for tname, sampler in terrains:
         fig1[tname] = {}
-        for mn, mech_fn in [("assigned", lambda: FullMechanism()), ("allbids", lambda: AllBidsScoringMechanism(use_total_var=True))]:
+        for mn, mech_fn in [("assigned", lambda: FullMechanism()), ("allbids", lambda: AllBidsScoringMechanism(use_total_var=True, relative=True))]:
             seps, fprs = [], []
             for seed in [42, 123, 456]:
-                mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=baselines[tname])
+                mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
                 fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
                 fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
                 def s(n, rng, _sam=sampler): return _sam(M, rng, n_robots=N)
@@ -65,11 +65,11 @@ def run():
     fig2 = {"in_dist": [], "ood4": []}
     for kappa in [0.5, 1, 2, 5, 10, 20]:
         for tname, sampler, bl_key in [("in_dist", in_dist, "in_dist"), ("ood4", ood4, "ood4")]:
-            mech_cfg = MechanismConfig(N=N, kappa=kappa, gamma=1.0, S_baseline=baselines[bl_key])
+            mech_cfg = MechanismConfig(N=N, kappa=kappa, gamma=1.0, S_baseline=0.0)
             fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
             fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
             def s(n, rng, _sam=sampler): return _sam(M, rng, n_robots=N)
-            sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True),
+            sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True, relative=True),
                                mech_cfg=mech_cfg, num_rounds=500, seed=42)
             results = simulate(sim_cfg, fleet, s)
             m = compute_metrics(results, 3, None)
@@ -116,8 +116,8 @@ def run():
     print("Computing fig5 data (reputation)...")
     fig5 = {}
     for mn, mech in [("vanilla", VanillaMechanism()), ("reputation", ReputationMechanism(window=50)),
-                     ("allbids", AllBidsScoringMechanism(use_total_var=True))]:
-        mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=baselines["ood4"])
+                     ("allbids", AllBidsScoringMechanism(use_total_var=True, relative=True))]:
+        mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
         fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
         fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
         def s(n, rng): return ood4(M, rng, n_robots=N)
@@ -134,8 +134,8 @@ def run():
         fleet_M = fleet_N // 2
         n_adv = fleet_N // 4
         n_honest = fleet_N - n_adv
-        mech_cfg = MechanismConfig(N=fleet_N, kappa=5.0, gamma=1.0, S_baseline=baselines["ood4"])
-        for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True))]:
+        mech_cfg = MechanismConfig(N=fleet_N, kappa=20.0, gamma=1.0, S_baseline=0.0)
+        for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True, relative=True))]:
             fleet = [EnsembleRobot(robot_id=i) for i in range(n_honest)]
             for i in range(n_adv):
                 fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=n_honest+i, offset=0.5))
@@ -154,8 +154,8 @@ def run():
                  for t in [anymal(1, rng, n_robots=N) for _ in range(200)]]
     S_bl_anymal = float(np.mean(scores_bl))
     fig7 = {"S_baseline": S_bl_anymal, "mechanisms": {}, "kappa_sweep": []}
-    for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True))]:
-        mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=S_bl_anymal)
+    for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True, relative=True))]:
+        mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
         fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
         fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
         def s(n, rng): return anymal(M, rng, n_robots=N)
@@ -164,11 +164,11 @@ def run():
         m = compute_metrics(results, 3, None)
         fig7["mechanisms"][mn] = {"sep": m.detection_separation, "fpr": m.false_positive_rate, "gain": m.strategic_gain}
     for kappa in [0.5, 1, 2, 5, 10, 20]:
-        mech_cfg = MechanismConfig(N=N, kappa=kappa, gamma=1.0, S_baseline=S_bl_anymal)
+        mech_cfg = MechanismConfig(N=N, kappa=kappa, gamma=1.0, S_baseline=0.0)
         fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
         fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
         def s(n, rng): return anymal(M, rng, n_robots=N)
-        sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True),
+        sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True, relative=True),
                            mech_cfg=mech_cfg, num_rounds=500, seed=42)
         results = simulate(sim_cfg, fleet, s)
         m = compute_metrics(results, 3, None)
@@ -181,7 +181,7 @@ def run():
     offsets = np.linspace(0, 1.5, 15).tolist()
     win_rates = []
     rng = np.random.default_rng(42)
-    mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=baselines["ood4"])
+    mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
     for offset in offsets:
         wins = 0
         for _ in range(500):
