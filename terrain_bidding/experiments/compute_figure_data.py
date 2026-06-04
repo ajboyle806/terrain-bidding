@@ -39,35 +39,41 @@ def run():
         baselines[tname] = float(np.mean(scores))
     data["baselines"] = baselines
 
-    # === Fig 1: All-bids vs assigned-only across terrain ===
-    print("Computing fig1 data (all-bids vs assigned)...")
+    # === Fig 1: All-bids vs assigned-only across terrain (3 seeds) ===
+    print("Computing fig1 data (3 seeds for error bars)...")
     fig1 = {}
     for tname, sampler in terrains:
         fig1[tname] = {}
-        for mn, mech in [("assigned", FullMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True))]:
-            mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=baselines[tname])
+        for mn, mech_fn in [("assigned", lambda: FullMechanism()), ("allbids", lambda: AllBidsScoringMechanism(use_total_var=True))]:
+            seps, fprs = [], []
+            for seed in [42, 123, 456]:
+                mech_cfg = MechanismConfig(N=N, kappa=5.0, gamma=1.0, S_baseline=baselines[tname])
+                fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
+                fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
+                def s(n, rng, _sam=sampler): return _sam(M, rng, n_robots=N)
+                sim_cfg = SimConfig(mechanism=mech_fn(), mech_cfg=mech_cfg, num_rounds=1000, seed=seed)
+                results = simulate(sim_cfg, fleet, s)
+                m = compute_metrics(results, 3, None)
+                seps.append(m.detection_separation)
+                fprs.append(m.false_positive_rate)
+            fig1[tname][mn] = {"sep_mean": float(np.mean(seps)), "sep_std": float(np.std(seps)),
+                               "fpr_mean": float(np.mean(fprs)), "fpr_std": float(np.std(fprs))}
+    data["fig1"] = fig1
+
+    # === Fig 2: κ sweep on IN-DIST (shows crossover) + OOD (all deter) ===
+    print("Computing fig2 data (κ sweep, in-dist + OOD)...")
+    fig2 = {"in_dist": [], "ood4": []}
+    for kappa in [0.5, 1, 2, 5, 10, 20]:
+        for tname, sampler, bl_key in [("in_dist", in_dist, "in_dist"), ("ood4", ood4, "ood4")]:
+            mech_cfg = MechanismConfig(N=N, kappa=kappa, gamma=1.0, S_baseline=baselines[bl_key])
             fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
             fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
             def s(n, rng, _sam=sampler): return _sam(M, rng, n_robots=N)
-            sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg, num_rounds=1000, seed=42)
+            sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True),
+                               mech_cfg=mech_cfg, num_rounds=500, seed=42)
             results = simulate(sim_cfg, fleet, s)
             m = compute_metrics(results, 3, None)
-            fig1[tname][mn] = {"sep": m.detection_separation, "fpr": m.false_positive_rate, "gain": m.strategic_gain}
-    data["fig1"] = fig1
-
-    # === Fig 2: κ sweep (all-bids on OOD4) ===
-    print("Computing fig2 data (κ sweep)...")
-    fig2 = []
-    for kappa in [0.5, 1, 2, 5, 10, 20]:
-        mech_cfg = MechanismConfig(N=N, kappa=kappa, gamma=1.0, S_baseline=baselines["ood4"])
-        fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
-        fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
-        def s(n, rng): return ood4(M, rng, n_robots=N)
-        sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True),
-                           mech_cfg=mech_cfg, num_rounds=500, seed=42)
-        results = simulate(sim_cfg, fleet, s)
-        m = compute_metrics(results, 3, None)
-        fig2.append({"kappa": kappa, "gain": m.strategic_gain, "sep": m.detection_separation})
+            fig2[tname].append({"kappa": kappa, "gain": m.strategic_gain})
     data["fig2"] = fig2
 
     # === Fig 3: Score distributions (all-bids on OOD4) ===

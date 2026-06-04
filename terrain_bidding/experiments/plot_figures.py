@@ -24,28 +24,32 @@ def load_data():
 
 
 def fig1(data):
-    """All-bids vs assigned-only across terrain."""
+    """All-bids vs assigned-only across terrain (with error bars)."""
     fig1d = data["fig1"]
     terrains = ["in_dist", "ood2", "ood3", "ood4"]
     labels = ["In-dist", "Mild\nOOD", "Mod\nOOD", "Strong\nOOD"]
     x = np.arange(4); w = 0.35
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(COL*2, 2.2))
-    seps_a = [fig1d[t]["assigned"]["sep"] for t in terrains]
-    seps_b = [fig1d[t]["allbids"]["sep"] for t in terrains]
-    ax1.bar(x - w/2, seps_a, w, label="Assigned-only", color="#ff7f0e")
-    ax1.bar(x + w/2, seps_b, w, label="All-bids (ours)", color="#2ca02c")
+    seps_a = [fig1d[t]["assigned"]["sep_mean"] for t in terrains]
+    seps_b = [fig1d[t]["allbids"]["sep_mean"] for t in terrains]
+    errs_a = [fig1d[t]["assigned"]["sep_std"] for t in terrains]
+    errs_b = [fig1d[t]["allbids"]["sep_std"] for t in terrains]
+    ax1.bar(x - w/2, seps_a, w, yerr=errs_a, capsize=3, label="Assigned-only", color="#ff7f0e")
+    ax1.bar(x + w/2, seps_b, w, yerr=errs_b, capsize=3, label="All-bids (ours)", color="#2ca02c")
     ax1.set_xticks(x); ax1.set_xticklabels(labels)
     ax1.set_ylabel("Detection sep."); ax1.set_title("(a) Detection")
     ax1.axhline(0, color="k", linewidth=0.5); ax1.legend()
 
-    fprs_a = [fig1d[t]["assigned"]["fpr"]*100 for t in terrains]
-    fprs_b = [fig1d[t]["allbids"]["fpr"]*100 for t in terrains]
-    ax2.bar(x - w/2, fprs_a, w, label="Assigned-only", color="#ff7f0e")
-    ax2.bar(x + w/2, fprs_b, w, label="All-bids (ours)", color="#2ca02c")
+    fprs_a = [fig1d[t]["assigned"]["fpr_mean"]*100 for t in terrains]
+    fprs_b = [fig1d[t]["allbids"]["fpr_mean"]*100 for t in terrains]
+    ferrs_a = [fig1d[t]["assigned"]["fpr_std"]*100 for t in terrains]
+    ferrs_b = [fig1d[t]["allbids"]["fpr_std"]*100 for t in terrains]
+    ax2.bar(x - w/2, fprs_a, w, yerr=ferrs_a, capsize=3, label="Assigned-only", color="#ff7f0e")
+    ax2.bar(x + w/2, fprs_b, w, yerr=ferrs_b, capsize=3, label="All-bids (ours)", color="#2ca02c")
     ax2.set_xticks(x); ax2.set_xticklabels(labels)
     ax2.set_ylabel("FPR (%)"); ax2.set_title("(b) False positive rate")
-    ax2.legend(); ax2.set_ylim(0, max(fprs_a + fprs_b) * 1.3)
+    ax2.legend(); ax2.set_ylim(0, max(fprs_a + fprs_b) * 1.5)
 
     plt.tight_layout()
     plt.savefig("figures/fig1_allbids.png", bbox_inches="tight")
@@ -53,19 +57,23 @@ def fig1(data):
 
 
 def fig2(data):
-    """κ sweep deterrence."""
+    """κ sweep: in-dist (shows crossover) and OOD (all deter)."""
     fig2d = data["fig2"]
-    kappas = [d["kappa"] for d in fig2d]
-    gains = [d["gain"] for d in fig2d]
+    kappas_id = [d["kappa"] for d in fig2d["in_dist"]]
+    gains_id = [d["gain"] for d in fig2d["in_dist"]]
+    kappas_ood = [d["kappa"] for d in fig2d["ood4"]]
+    gains_ood = [d["gain"] for d in fig2d["ood4"]]
 
-    fig, ax = plt.subplots(figsize=(COL, 2.2))
-    ax.plot(kappas, gains, "o-", color="#9467bd", markersize=5)
+    fig, ax = plt.subplots(figsize=(COL, 2.5))
+    ax.plot(kappas_id, gains_id, "o-", color="#1f77b4", markersize=5, label="In-distribution")
+    ax.plot(kappas_ood, gains_ood, "s-", color="#2ca02c", markersize=5, label="OOD (novel terrain)")
     ax.axhline(0, color="k", linewidth=0.5)
     ax.set_xlabel(r"$\kappa$ (penalty coefficient)")
     ax.set_ylabel("Adversary gain")
-    ax.set_title(r"Deterrence: all $\kappa > 0$ (OOD terrain)")
-    ax.set_xscale("log"); ax.set_ylim(min(gains) - 0.3, 0.5)
-    ax.fill_between(kappas, 0, gains, alpha=0.15, color="#2ca02c")
+    ax.set_title(r"Deterrence threshold")
+    ax.set_xscale("log")
+    ax.legend()
+    ax.annotate("Manipulation\nunprofitable", xy=(5, -1.2), fontsize=8, color="#2ca02c")
     plt.tight_layout()
     plt.savefig("figures/fig2_deterrence.png", bbox_inches="tight")
     plt.close()
