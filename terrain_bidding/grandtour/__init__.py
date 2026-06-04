@@ -15,7 +15,7 @@ from huggingface_hub import snapshot_download, list_repo_tree
 
 
 REPO_ID = "leggedrobotics/grand_tour_dataset"
-SEGMENT_DURATION = 10.0  # seconds per cost segment
+SEGMENT_DURATION = 5.0  # seconds per cost segment
 
 
 def list_missions(max_n=None):
