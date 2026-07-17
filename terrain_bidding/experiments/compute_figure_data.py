@@ -7,7 +7,7 @@ import pickle
 from pathlib import Path
 from terrain_bidding.experiments.real_sampler import make_real_task_sampler, EnsembleRobot, REAL_ADVERSARY_TYPES
 from terrain_bidding.mechanism import FullMechanism, TotalVarianceMechanism, VanillaMechanism, SimConfig, simulate, gaussian_score
-from terrain_bidding.mechanism.all_bids import AllBidsScoringMechanism
+from terrain_bidding.mechanism.all_bids import AllBidsScoringMechanism, AdaptiveKappaMechanism
 from terrain_bidding.experiments.fleet_experiments import ReputationMechanism
 from terrain_bidding.experiments import compute_metrics
 from terrain_bidding.configs import MechanismConfig
@@ -44,7 +44,7 @@ def run():
     fig1 = {}
     for tname, sampler in terrains:
         fig1[tname] = {}
-        for mn, mech_fn in [("assigned", lambda: FullMechanism()), ("allbids", lambda: AllBidsScoringMechanism(use_total_var=True, relative=True))]:
+        for mn, mech_fn in [("assigned", lambda: FullMechanism()), ("allbids", lambda: AdaptiveKappaMechanism())]:
             seps, fprs = [], []
             for seed in [42, 123, 456]:
                 mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
@@ -69,7 +69,7 @@ def run():
             fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
             fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
             def s(n, rng, _sam=sampler): return _sam(M, rng, n_robots=N)
-            sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True, relative=True),
+            sim_cfg = SimConfig(mechanism=AdaptiveKappaMechanism(),
                                mech_cfg=mech_cfg, num_rounds=500, seed=42)
             results = simulate(sim_cfg, fleet, s)
             m = compute_metrics(results, 3, None)
@@ -116,7 +116,7 @@ def run():
     print("Computing fig5 data (reputation)...")
     fig5 = {}
     for mn, mech in [("vanilla", VanillaMechanism()), ("reputation", ReputationMechanism(window=50)),
-                     ("allbids", AllBidsScoringMechanism(use_total_var=True, relative=True))]:
+                     ("allbids", AdaptiveKappaMechanism())]:
         mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
         fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
         fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
@@ -135,7 +135,7 @@ def run():
         n_adv = fleet_N // 4
         n_honest = fleet_N - n_adv
         mech_cfg = MechanismConfig(N=fleet_N, kappa=20.0, gamma=1.0, S_baseline=0.0)
-        for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True, relative=True))]:
+        for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AdaptiveKappaMechanism())]:
             fleet = [EnsembleRobot(robot_id=i) for i in range(n_honest)]
             for i in range(n_adv):
                 fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=n_honest+i, offset=0.5))
@@ -154,7 +154,7 @@ def run():
                  for t in [anymal(1, rng, n_robots=N) for _ in range(200)]]
     S_bl_anymal = float(np.mean(scores_bl))
     fig7 = {"S_baseline": S_bl_anymal, "mechanisms": {}, "kappa_sweep": []}
-    for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AllBidsScoringMechanism(use_total_var=True, relative=True))]:
+    for mn, mech in [("vanilla", VanillaMechanism()), ("allbids", AdaptiveKappaMechanism())]:
         mech_cfg = MechanismConfig(N=N, kappa=20.0, gamma=1.0, S_baseline=0.0)
         fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
         fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
@@ -168,7 +168,7 @@ def run():
         fleet = [EnsembleRobot(robot_id=i) for i in range(3)]
         fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=3, offset=0.5))
         def s(n, rng): return anymal(M, rng, n_robots=N)
-        sim_cfg = SimConfig(mechanism=AllBidsScoringMechanism(use_total_var=True, relative=True),
+        sim_cfg = SimConfig(mechanism=AdaptiveKappaMechanism(),
                            mech_cfg=mech_cfg, num_rounds=500, seed=42)
         results = simulate(sim_cfg, fleet, s)
         m = compute_metrics(results, 3, None)
