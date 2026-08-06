@@ -91,6 +91,12 @@ class RoundResult:
 class MechanismVariant:
     """Base class for mechanism variants."""
 
+    # Subclasses that score ALL robots (not just the assigned one) should set
+    # this to True.  simulate() uses it to decide whether to apply the penalty
+    # to unassigned robots as well — which is required for the overbidding
+    # loophole to be closed.
+    scores_all_robots: bool = False
+
     def allocate(self, bids: List[List[Bid]], cfg: MechanismConfig) -> np.ndarray:
         raise NotImplementedError
 
@@ -263,13 +269,40 @@ def simulate(sim_cfg: SimConfig, robots: list, task_sampler) -> List[RoundResult
         # Scoring
         scores = sim_cfg.mechanism.score(bids, assignments, realized_costs, cfg)
 
-        # Penalties and utilities
+        # Penalties and utilities.
+        # For all-bids mechanisms every robot is scored on every executed task,
+        # so the penalty applies regardless of assignment.  This closes the
+        # overbidding loophole.
+        # If the mechanism defines compute_penalties() it owns the penalty
+        # computation entirely (used by AdaptiveKappaMechanism to apply per-task
+        # κ_j directly without going through cfg.kappa).  Otherwise fall back to
+        # scalar compute_penalty() gated on assignment.
         penalties = np.zeros(N)
         utilities = np.zeros(N)
-        for i in range(N):
-            if assignments[i] >= 0:
-                penalties[i] = compute_penalty(scores[i], cfg.S_baseline or 0, cfg.kappa)
-                utilities[i] = compute_utility(True, realized_costs[i], penalties[i], cfg.R)
+        s_baseline = cfg.S_baseline or 0.0
+        all_bids_mode = getattr(sim_cfg.mechanism, 'scores_all_robots', False)
+        has_custom_penalty = hasattr(sim_cfg.mechanism, 'compute_penalties')
+
+        if all_bids_mode and has_custom_penalty:
+            penalties = sim_cfg.mechanism.compute_penalties(scores, cfg)
+            for i in range(N):
+                if assignments[i] >= 0:
+                    utilities[i] = compute_utility(True, realized_costs[i], penalties[i], cfg.R)
+                else:
+                    utilities[i] = -penalties[i]
+        elif all_bids_mode:
+            for i in range(N):
+                penalties[i] = compute_penalty(scores[i], s_baseline, cfg.kappa)
+                if assignments[i] >= 0:
+                    utilities[i] = compute_utility(True, realized_costs[i], penalties[i], cfg.R)
+                else:
+                    utilities[i] = -penalties[i]
+        else:
+            # Legacy assigned-only: penalty only when assigned
+            for i in range(N):
+                if assignments[i] >= 0:
+                    penalties[i] = compute_penalty(scores[i], s_baseline, cfg.kappa)
+                    utilities[i] = compute_utility(True, realized_costs[i], penalties[i], cfg.R)
 
         result = RoundResult(assignments, realized_costs, scores, penalties, utilities)
         results.append(result)

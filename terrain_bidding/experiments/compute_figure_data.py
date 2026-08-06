@@ -140,7 +140,7 @@ def run():
             for i in range(n_adv):
                 fleet.append(REAL_ADVERSARY_TYPES["fixed_offset"](robot_id=n_honest+i, offset=0.5))
             def s(n, rng): return ood4(fleet_M, rng, n_robots=fleet_N)
-            sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg, num_rounds=500, seed=42)
+            sim_cfg = SimConfig(mechanism=mech, mech_cfg=mech_cfg, num_rounds=1000, seed=42)
             results = simulate(sim_cfg, fleet, s)
             m = compute_metrics(results, n_honest, None)
             fig6.append({"N": fleet_N, "mech": mn, "gain": m.strategic_gain, "sep": m.detection_separation})

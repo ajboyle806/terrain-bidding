@@ -100,6 +100,9 @@ class ReputationMechanism:
     Instead of proper scoring, tracks each robot's historical prediction error.
     Flags robots whose error exceeds a threshold.
     """
+
+    scores_all_robots: bool = False  # only scores the assigned robot
+
     def __init__(self, window: int = 50, threshold: float = 2.0):
         self.window = window
         self.threshold = threshold
